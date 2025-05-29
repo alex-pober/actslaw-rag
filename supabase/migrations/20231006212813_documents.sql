@@ -34,43 +34,18 @@ on documents for insert to authenticated with check (
   auth.uid() = created_by
 );
 
-create policy "Users can query their own documents"
-on documents for select to authenticated using (
-  auth.uid() = created_by
-);
+create policy "Users can query all documents"
+on documents for select to authenticated using (true);
 
 create policy "Users can insert document sections"
-on document_sections for insert to authenticated with check (
-  document_id in (
-    select id
-    from documents
-    where created_by = auth.uid()
-  )
-);
+on document_sections for insert to authenticated with check (true);
 
-create policy "Users can update their own document sections"
-on document_sections for update to authenticated using (
-  document_id in (
-    select id
-    from documents
-    where created_by = auth.uid()
-  )
-) with check (
-  document_id in (
-    select id
-    from documents
-    where created_by = auth.uid()
-  )
-);
+create policy "Users can update all document sections"
+on document_sections for update to authenticated using (true)
+with check (true);
 
-create policy "Users can query their own document sections"
-on document_sections for select to authenticated using (
-  document_id in (
-    select id
-    from documents
-    where created_by = auth.uid()
-  )
-);
+create policy "Users can query all document sections"
+on document_sections for select to authenticated using (true);
 
 create function supabase_url()
 returns text

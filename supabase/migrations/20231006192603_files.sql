@@ -22,17 +22,17 @@ on storage.objects for insert to authenticated with check (
     private.uuid_or_null(path_tokens[1]) is not null
 );
 
-create policy "Users can view their own files"
+create policy "Users can view all files"
 on storage.objects for select to authenticated using (
-  bucket_id = 'files' and owner = auth.uid()
+  bucket_id = 'files'
 );
 
-create policy "Users can update their own files"
+create policy "Users can update all files"
 on storage.objects for update to authenticated with check (
-  bucket_id = 'files' and owner = auth.uid()
+  bucket_id = 'files'
 );
 
-create policy "Users can delete their own files"
+create policy "Users can delete all files"
 on storage.objects for delete to authenticated using (
-  bucket_id = 'files' and owner = auth.uid()
+  bucket_id = 'files'
 );
