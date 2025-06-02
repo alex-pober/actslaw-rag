@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import smartAdvocateClient from '@/lib/smartadvocate/client';
+import Image from 'next/image';
 
 interface CaseSearchResult {
   caseID: number;
@@ -115,37 +116,18 @@ export default function Navbar({ user }: NavbarProps) {
         <div className="flex items-center space-x-8">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <svg
-                width="20px"
-                height="20px"
-                version="1.1"
-                viewBox="0 0 100 100"
-                xmlns="http://www.w3.org/2000/svg"
-                className="fill-primary-foreground"
-              >
-                <g>
-                  <path d="m11.906 46.43c-1.7852 1.4883-4.168 0.89453-5.0586-1.1914-1.1914-2.082-0.59375-4.7617 1.1914-5.9531l40.18-30.355c1.1914-0.89453 2.6797-0.89453 3.8672 0l40.18 30.355c1.4883 1.1914 2.082 3.8672 0.89453 5.9531-0.89453 2.082-3.2734 2.6797-5.0586 1.1914l-38.094-28.867-38.094 28.867z" />
-                  <path
-                    d="m83.633 48.809v37.5c0 2.9766-2.3828 5.6562-5.6562 5.6562h-15.773v-28.57c0-2.9766-2.3828-5.0586-5.0586-5.0586h-13.988c-2.9766 0-5.0586 2.082-5.0586 5.0586v28.57h-16.07c-2.9766 0-5.6562-2.6797-5.6562-5.6562v-37.5l33.633-25.297 33.633 25.297z"
-                    fillRule="evenodd"
-                  />
-                </g>
-              </svg>
-            </div>
-            <span className="font-bold text-lg hidden sm:block">ACTSLAW</span>
+          <Image
+              src="/images/logo.svg"
+              alt="ACTS Law - Abir Cohen Treyzon Salo, LLP"
+              width={120}
+              height={32}
+              className="h-8 w-auto"
+            />
           </Link>
 
           {/* Navigation Links */}
           {user && (
             <div className="hidden md:flex items-center space-x-1">
-              <Link
-                href="/"
-                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <Home className="w-4 h-4" />
-                <span>Home</span>
-              </Link>
               <Link
                 href="/files"
                 className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
