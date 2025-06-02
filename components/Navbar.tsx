@@ -1,10 +1,11 @@
+// components/Navbar.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Search, User, LogOut, Settings, Home, FileText, MessageSquare } from 'lucide-react';
+import { Search, User, LogOut, Settings, Home, FileText, MessageSquare, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import smartAdvocateClient from '@/lib/smartadvocate/client';
+import { useCase } from '@/lib/contexts/case-context';
 import Image from 'next/image';
 
 interface CaseSearchResult {
@@ -33,13 +35,28 @@ interface NavbarProps {
 
 export default function Navbar({ user }: NavbarProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClientComponentClient();
+  const { currentCase, loadCase, clearCase, isLoading } = useCase();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CaseSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
+
+  // Load case from URL parameter on mount and when URL changes
+  useEffect(() => {
+    const caseParam = searchParams.get('case');
+    if (caseParam && (!currentCase || currentCase.caseNumber !== caseParam)) {
+      loadCase(caseParam);
+    } else if (!caseParam && currentCase) {
+      // If there's no case parameter in URL but we have a current case,
+      // and we're not loading, this might be from localStorage
+      // Don't auto-clear in this case, let the user decide
+    }
+  }, [searchParams]);
 
   // Debounced search function
   useEffect(() => {
@@ -58,9 +75,8 @@ export default function Navbar({ user }: NavbarProps) {
         setIsSearching(true);
         const results = await smartAdvocateClient.request(`case/CaseInfo?Casenumber=${searchQuery.trim()}`);
 
-        // Handle array response or single object
         const casesArray = Array.isArray(results) ? results : [results];
-        setSearchResults(casesArray.filter(Boolean)); // Filter out null/undefined
+        setSearchResults(casesArray.filter(Boolean));
         setShowResults(true);
       } catch (error) {
         console.error('Search error:', error);
@@ -69,7 +85,7 @@ export default function Navbar({ user }: NavbarProps) {
       } finally {
         setIsSearching(false);
       }
-    }, 300); // 300ms debounce
+    }, 300);
 
     return () => {
       if (debounceRef.current) {
@@ -90,15 +106,34 @@ export default function Navbar({ user }: NavbarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleCaseSelect = (caseNumber: string) => {
+  const handleCaseSelect = async (caseNumber: string) => {
     setShowResults(false);
     setSearchQuery('');
-    router.push(`/smartadvocate?case=${caseNumber}`);
+    await loadCase(caseNumber);
+
+    // Update URL without full page reload
+    const url = new URL(window.location.href);
+    url.searchParams.set('case', caseNumber);
+    window.history.pushState({}, '', url.toString());
+
+    // Navigate to case view if not already there
+    if (!window.location.pathname.includes('/smartadvocate')) {
+      router.push(`/smartadvocate?case=${caseNumber}`);
+    }
   };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    clearCase(); // Clear case context on logout
     router.push('/login');
+  };
+
+  const handleClearCase = () => {
+    clearCase();
+    // Clear search state
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowResults(false);
   };
 
   const getUserInitials = (email: string) => {
@@ -114,9 +149,8 @@ export default function Navbar({ user }: NavbarProps) {
       <div className="max-w-7xl flex grow justify-between items-center px-4 sm:px-6 lg:px-8 h-16">
         {/* Logo and Main Navigation */}
         <div className="flex items-center space-x-8">
-          {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-          <Image
+            <Image
               src="/images/logo.svg"
               alt="ACTS Law - Abir Cohen Treyzon Salo, LLP"
               width={120}
@@ -125,7 +159,6 @@ export default function Navbar({ user }: NavbarProps) {
             />
           </Link>
 
-          {/* Navigation Links */}
           {user && (
             <div className="hidden md:flex items-center space-x-1">
               <Link
@@ -153,50 +186,89 @@ export default function Navbar({ user }: NavbarProps) {
           )}
         </div>
 
-        {/* Center Search Bar */}
+        {/* Center Search Bar with Current Case Display */}
         {user && (
-          <div className="flex-1 max-w-lg mx-8 relative" ref={searchRef}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="SA number goes here..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 w-full"
-                onFocus={() => searchResults.length > 0 && setShowResults(true)}
-              />
-              {isSearching && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+          <div className="flex-1 max-w-lg mx-8">
+            {currentCase ? (
+              /* Current Case Display - Full Width When Case Selected */
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-blue-900 truncate">
+                    Case #{currentCase.caseNumber}
+                  </div>
+                  <div className="text-xs text-blue-700 truncate">
+                    {currentCase.caseName}
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Search Results Dropdown */}
-            {showResults && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
-                {searchResults.map((case_item) => (
+                <div className="flex items-center space-x-2 ml-4">
                   <button
-                    key={case_item.caseID}
-                    onClick={() => handleCaseSelect(case_item.caseNumber)}
-                    className="w-full px-4 py-3 text-left hover:bg-accent border-b border-border last:border-b-0 transition-colors"
+                    onClick={() => {
+                      // Toggle search mode
+                      setSearchQuery('');
+                      setShowResults(false);
+                      // Focus search input after clearing case would be handled by useEffect
+                    }}
+                    className="text-blue-600 hover:text-blue-800 p-1"
+                    title="Search for different case"
                   >
-                    <div className="font-medium text-sm">{case_item.caseName}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Case #{case_item.caseNumber} • {case_item.caseStatus} • {case_item.caseType}
-                    </div>
+                    <Search className="w-4 h-4" />
                   </button>
-                ))}
-              </div>
-            )}
-
-            {/* No Results */}
-            {showResults && searchResults.length === 0 && searchQuery.trim() && !isSearching && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50">
-                <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                  No cases found for "{searchQuery}"
+                  <button
+                    onClick={handleClearCase}
+                    className="text-blue-600 hover:text-blue-800 p-1"
+                    title="Clear current case"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
+              </div>
+            ) : (
+              /* Search Bar - Show When No Case Selected */
+              <div className="relative" ref={searchRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search SA number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 w-full"
+                    onFocus={() => searchResults.length > 0 && setShowResults(true)}
+                    autoFocus
+                  />
+                  {isSearching && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Search Results Dropdown */}
+                {showResults && searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
+                    {searchResults.map((case_item) => (
+                      <button
+                        key={case_item.caseID}
+                        onClick={() => handleCaseSelect(case_item.caseNumber)}
+                        className="w-full px-4 py-3 text-left hover:bg-accent border-b border-border last:border-b-0 transition-colors"
+                      >
+                        <div className="font-medium text-sm">{case_item.caseName}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Case #{case_item.caseNumber} • {case_item.caseStatus} • {case_item.caseType}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* No Results */}
+                {showResults && searchResults.length === 0 && searchQuery.trim() && !isSearching && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50">
+                    <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                      No cases found for "{searchQuery}"
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

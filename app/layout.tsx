@@ -1,6 +1,8 @@
+// app/layout.tsx
 import Navbar from '@/components/Navbar';
 import { Toaster } from '@/components/ui/toaster';
 import Providers from '@/lib/providers';
+import { CaseProvider } from '@/lib/contexts/case-context';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { PropsWithChildren } from 'react';
@@ -26,14 +28,20 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en" className="h-full">
       <body className="h-full">
         <Providers>
-          <div className="flex flex-col h-full">
-            {/* @ts-ignore */}
-            <Navbar user={user} />
-            <main className="flex-1 bg-background flex flex-col items-center overflow-hidden">
-              {children}
-            </main>
-            <Toaster />
-          </div>
+          <CaseProvider>
+            <div className="flex flex-col min-h-screen">
+              {/* @ts-ignore */}
+              <Navbar user={user} />
+              <main className="flex-1 bg-background">
+                <div className="w-full flex justify-center">
+                  <div className="w-full max-w-none">
+                    {children}
+                  </div>
+                </div>
+              </main>
+              <Toaster />
+            </div>
+          </CaseProvider>
         </Providers>
       </body>
     </html>
