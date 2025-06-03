@@ -24,6 +24,7 @@ import {
   Minimize2
 } from 'lucide-react';
 import smartAdvocateClient from '@/lib/smartadvocate/client';
+import { parseMSGFile } from '@/lib/smartadvocate/msg-parser';
 
 interface Document {
   documentID: number;
@@ -70,22 +71,28 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
     }
   }, [document, isOpen]);
 
-  const loadDocumentContent = async () => {
-    if (!document) return;
+// Replace the loadDocumentContent method in components/DocumentViewer.tsx
 
-    try {
-      setLoading(true);
-      setError(null);
+const loadDocumentContent = async () => {
+  if (!document) return;
 
-      const docContent = await smartAdvocateClient.getDocumentContent(document.documentID);
-      setContent(docContent);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load document content');
-      console.error('Error loading document:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    setLoading(true);
+    setError(null);
+
+    console.log('Loading document content for ID:', document.documentID);
+
+    const docContent = await smartAdvocateClient.getDocumentContent(document.documentID);
+    console.log('Document content loaded:', docContent);
+
+    setContent(docContent);
+  } catch (err: any) {
+    setError(err.message || 'Failed to load document content');
+    console.error('Error loading document:', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleDownload = async () => {
     if (!document) return;
@@ -174,122 +181,334 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
     );
   };
 
-  const renderContent = () => {
-    if (loading) {
+// Updated renderContent method in components/DocumentViewer.tsx with better PDF handling
+
+// Updated renderContent method in components/DocumentViewer.tsx with better PDF handling
+
+const renderContent = () => {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
+          <p className="text-gray-600">Loading document...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-600" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={loadDocumentContent} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!content) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center text-gray-500">
+          <FileText className="w-8 h-8 mx-auto mb-2" />
+          <p>No content available</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle MSG files (Outlook messages)
+  if (content.isMSGFile && content.rawData) {
+    // Parse the MSG file to extract readable content
+    const parsedMSG = parseMSGFile(content.rawData);
+
+    return (
+      <div className="border rounded p-4 bg-gray-50 max-h-96 overflow-y-auto">
+        <div className="mb-4 pb-4 border-b">
+          <div className="flex items-center mb-3">
+            <Mail className="w-5 h-5 mr-2 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Email Message</h3>
+          </div>
+
+          {parsedMSG.subject && (
+            <div className="mb-2">
+              <span className="font-medium text-gray-700">Subject:</span>
+              <span className="ml-2 text-gray-900">{parsedMSG.subject}</span>
+            </div>
+          )}
+
+          {parsedMSG.from && (
+            <div className="mb-2">
+              <span className="font-medium text-gray-700">From:</span>
+              <span className="ml-2 text-gray-900">{parsedMSG.from}</span>
+            </div>
+          )}
+
+          {parsedMSG.to && (
+            <div className="mb-2">
+              <span className="font-medium text-gray-700">To:</span>
+              <span className="ml-2 text-gray-900">{parsedMSG.to}</span>
+            </div>
+          )}
+
+          {parsedMSG.cc && (
+            <div className="mb-2">
+              <span className="font-medium text-gray-700">CC:</span>
+              <span className="ml-2 text-gray-900">{parsedMSG.cc}</span>
+            </div>
+          )}
+
+          {parsedMSG.date && (
+            <div className="mb-2">
+              <span className="font-medium text-gray-700">Date:</span>
+              <span className="ml-2 text-gray-900">{parsedMSG.date}</span>
+            </div>
+          )}
+        </div>
+
+        {parsedMSG.body && (
+          <div>
+            <div className="font-medium text-gray-700 mb-2">Message:</div>
+            <div className="bg-white p-3 rounded border">
+              <pre className="whitespace-pre-wrap text-sm text-gray-900 font-sans">
+                {parsedMSG.body}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {!parsedMSG.subject && !parsedMSG.from && !parsedMSG.body && (
+          <div className="text-center py-8">
+            <Mail className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <p className="text-gray-600 mb-2">Unable to display MSG file content</p>
+            <p className="text-sm text-gray-500 mb-4">
+              The email message format is not supported for preview.
+            </p>
+            <Button onClick={handleDownload} className="flex items-center space-x-2">
+              <Download className="w-4 h-4" />
+              <span>Download MSG File</span>
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t text-xs text-gray-500 text-center">
+          MSG File • {content.fileSize ? formatFileSize(content.fileSize) : 'Unknown size'}
+          <br />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            className="mt-2 text-xs"
+          >
+            <Download className="w-3 h-3 mr-1" />
+            Download Original
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle PDF content from blob URL
+  if (content.isPDFBlob && content.downloadUrl) {
+    return (
+      <div className="h-96">
+        <iframe
+          src={content.downloadUrl}
+          className="w-full h-full border rounded"
+          title={document?.documentName}
+          onLoad={() => {
+            console.log('PDF loaded successfully in iframe');
+          }}
+          onError={(e) => {
+            console.error('PDF iframe error:', e);
+            setError('Failed to display PDF in browser. The file may be corrupted or in an unsupported format.');
+          }}
+        />
+        <div className="mt-2 text-sm text-gray-500 text-center">
+          PDF • {content.fileSize ? formatFileSize(content.fileSize) : 'Unknown size'}
+        </div>
+      </div>
+    );
+  }
+
+  // Handle PDF content from binary method
+  if (content.isPDFBinary && content.downloadUrl) {
+    return (
+      <div className="h-96">
+        <iframe
+          src={content.downloadUrl}
+          className="w-full h-full border rounded"
+          title={document?.documentName}
+          onLoad={() => {
+            console.log('PDF loaded successfully in iframe');
+          }}
+          onError={(e) => {
+            console.error('PDF iframe error:', e);
+            setError('Failed to display PDF in browser. Try downloading it instead.');
+          }}
+        />
+        <div className="mt-2 text-sm text-gray-500 text-center">
+          PDF loaded from binary data • {content.fileSize ? formatFileSize(content.fileSize) : 'Unknown size'}
+        </div>
+      </div>
+    );
+  }
+
+  // Handle PDF content that comes as text starting with %PDF-
+  if (content.isPDFText && content.content?.startsWith('%PDF-')) {
+    try {
+      // Method 1: Try using base64 encoding if the content looks like it might be encoded
+      let pdfUrl: string;
+
+      // Check if the content contains non-printable characters (binary data as text)
+      const hasNonPrintable = /[\x00-\x08\x0E-\x1F\x7F-\xFF]/.test(content.content);
+
+      if (hasNonPrintable) {
+        // Content appears to be binary data stored as text
+        // Convert to proper binary format
+        const bytes = new Uint8Array(content.content.length);
+        for (let i = 0; i < content.content.length; i++) {
+          bytes[i] = content.content.charCodeAt(i) & 0xFF;
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        pdfUrl = URL.createObjectURL(blob);
+      } else {
+        // Content appears to be text representation
+        // Try to encode as UTF-8 bytes
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(content.content);
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        pdfUrl = URL.createObjectURL(blob);
+      }
+
       return (
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
-            <p className="text-gray-600">Loading document...</p>
+        <div className="h-96">
+          <iframe
+            src={pdfUrl}
+            className="w-full h-full border rounded"
+            title={document?.documentName}
+            onLoad={() => {
+              // Clean up the URL after some time
+              setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
+            }}
+            onError={(e) => {
+              console.error('PDF iframe error:', e);
+              URL.revokeObjectURL(pdfUrl);
+            }}
+          />
+          <div className="mt-2 text-sm text-gray-500 text-center">
+            If the PDF doesn't display, try downloading it using the download button above.
           </div>
         </div>
       );
-    }
+    } catch (error) {
+      console.error('Error creating PDF blob:', error);
 
-    if (error) {
+      // Fallback: Show raw content with download option
       return (
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-600" />
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={loadDocumentContent} variant="outline">
-              Try Again
+        <div className="flex flex-col items-center justify-center h-96">
+          <div className="text-center mb-4">
+            <FileText className="w-12 h-12 mx-auto mb-2 text-red-400" />
+            <p className="text-red-600 mb-2">PDF preview failed</p>
+            <p className="text-sm text-gray-500 mb-4">
+              The PDF couldn't be displayed in the browser.
+            </p>
+          </div>
+          <div className="flex space-x-2">
+            <Button onClick={handleDownload} className="flex items-center space-x-2">
+              <Download className="w-4 h-4" />
+              <span>Download PDF</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // Show raw content in a modal or expanded view
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                  newWindow.document.write(`
+                    <html>
+                      <head><title>Raw PDF Content - ${document?.documentName}</title></head>
+                      <body style="font-family: monospace; white-space: pre-wrap; padding: 20px;">
+                        ${content.content}
+                      </body>
+                    </html>
+                  `);
+                }
+              }}
+            >
+              View Raw Content
             </Button>
           </div>
         </div>
       );
     }
+  }
 
-    if (!content) {
-      return (
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center text-gray-500">
-            <FileText className="w-8 h-8 mx-auto mb-2" />
-            <p>No content available</p>
-          </div>
-        </div>
-      );
-    }
-
-    // Handle PDF content that comes as text
-    if (content.isPDFText && content.content?.startsWith('%PDF-')) {
-      // Convert the PDF text to a blob URL for viewing
-      const pdfBytes = new Uint8Array(content.content.length);
-      for (let i = 0; i < content.content.length; i++) {
-        pdfBytes[i] = content.content.charCodeAt(i);
-      }
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-
-      return (
-        <div className="h-96">
-          <iframe
-            src={url}
-            className="w-full h-full border rounded"
-            title={document?.documentName}
-            onLoad={() => {
-              // Clean up the URL after the iframe loads
-              setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }}
-          />
-        </div>
-      );
-    }
-
-    // Handle regular image content
-    if (content.contentType?.includes('image/')) {
-      return (
-        <div className="flex justify-center">
-          <img
-            src={content.downloadUrl || `data:${content.contentType};base64,${content.content}`}
-            alt={document?.documentName}
-            className="max-w-full max-h-96 object-contain border rounded"
-          />
-        </div>
-      );
-    }
-
-    // Handle regular PDF content (if it comes as a proper URL or base64)
-    if (content.contentType?.includes('application/pdf') && !content.isPDFText) {
-      return (
-        <div className="h-96">
-          <iframe
-            src={content.downloadUrl || `data:${content.contentType};base64,${content.content}`}
-            className="w-full h-full border rounded"
-            title={document?.documentName}
-          />
-        </div>
-      );
-    }
-
-    // Handle text content
-    if (content.contentType?.includes('text/') || content.content) {
-      return (
-        <div className="border rounded p-4 bg-gray-50 max-h-96 overflow-y-auto">
-          <pre className="whitespace-pre-wrap text-sm font-mono">
-            {content.content || 'No text content available'}
-          </pre>
-        </div>
-      );
-    }
-
-    // For non-previewable content
+  // Handle regular image content
+  if (content.contentType?.includes('image/')) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-gray-600 mb-2">Preview not available for this file type</p>
-          <p className="text-sm text-gray-500 mb-4">
-            {content.contentType && `Content Type: ${content.contentType}`}
-          </p>
-          <Button onClick={handleDownload} className="flex items-center space-x-2">
-            <Download className="w-4 h-4" />
-            <span>Download to View</span>
-          </Button>
-        </div>
+      <div className="flex justify-center">
+        <img
+          src={content.downloadUrl || `data:${content.contentType};base64,${content.content}`}
+          alt={document?.documentName}
+          className="max-w-full max-h-96 object-contain border rounded"
+          onError={(e) => {
+            console.error('Image load error:', e);
+          }}
+        />
       </div>
     );
-  };
+  }
+
+  // Handle regular PDF content (if it comes as a proper URL or base64)
+  if (content.contentType?.includes('application/pdf') && !content.isPDFText) {
+    return (
+      <div className="h-96">
+        <iframe
+          src={content.downloadUrl || `data:${content.contentType};base64,${content.content}`}
+          className="w-full h-full border rounded"
+          title={document?.documentName}
+          onError={(e) => {
+            console.error('PDF iframe error:', e);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Handle text content
+  if (content.contentType?.includes('text/') || (content.content && !content.contentType?.includes('application/'))) {
+    return (
+      <div className="border rounded p-4 bg-gray-50 max-h-96 overflow-y-auto">
+        <pre className="whitespace-pre-wrap text-sm font-mono">
+          {content.content || 'No text content available'}
+        </pre>
+      </div>
+    );
+  }
+
+  // For non-previewable content
+  return (
+    <div className="flex items-center justify-center h-96">
+      <div className="text-center">
+        <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+        <p className="text-gray-600 mb-2">Preview not available for this file type</p>
+        <p className="text-sm text-gray-500 mb-4">
+          {content.contentType && `Content Type: ${content.contentType}`}
+        </p>
+        <Button onClick={handleDownload} className="flex items-center space-x-2">
+          <Download className="w-4 h-4" />
+          <span>Download to View</span>
+        </Button>
+      </div>
+    </div>
+  );
+};
 
   if (!document) return null;
 

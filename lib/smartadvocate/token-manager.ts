@@ -81,54 +81,96 @@ class SmartAdvocateTokenManager {
     return this.token!;
   }
 
-  async makeAuthenticatedRequest(config: RequestConfig) {
-    const token = await this.getValidToken();
 
-    // Build URL with query parameters
-    const url = new URL(config.url);
-    if (config.params) {
-      Object.entries(config.params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
-      });
-    }
+async makeAuthenticatedRequest(config: RequestConfig) {
+  const token = await this.getValidToken();
 
-    console.log(`Making SmartAdvocate API request to: ${url.toString()}`);
-    console.log(`Method: ${config.method || 'GET'}`);
-
-    const response = await fetch(url.toString(), {
-      method: config.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        ...config.headers
-      },
-      body: config.data ? JSON.stringify(config.data) : undefined
+  // Build URL with query parameters
+  const url = new URL(config.url);
+  if (config.params) {
+    Object.entries(config.params).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
     });
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { message: errorText };
-      }
+  console.log(`Making SmartAdvocate API request to: ${url.toString()}`);
+  console.log(`Method: ${config.method || 'GET'}`);
 
-      const error = new Error(`SmartAdvocate API Error: ${response.status} ${response.statusText}`);
-      (error as any).response = {
-        status: response.status,
-        statusText: response.statusText,
-        data: errorData
-      };
-      throw error;
+  const response = await fetch(url.toString(), {
+    method: config.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...config.headers
+    },
+    body: config.data ? JSON.stringify(config.data) : undefined
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorData;
+    try {
+      errorData = JSON.parse(errorText);
+    } catch {
+      errorData = { message: errorText };
     }
 
+    const error = new Error(`SmartAdvocate API Error: ${response.status} ${response.statusText}`);
+    (error as any).response = {
+      status: response.status,
+      statusText: response.statusText,
+      data: errorData
+    };
+    throw error;
+  }
+
+  // Get content type to determine how to handle the response
+  const contentType = response.headers.get('content-type') || '';
+
+  // For JSON responses
+  if (contentType.includes('application/json')) {
     return {
       data: await response.json(),
       status: response.status,
-      statusText: response.statusText
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
     };
   }
+
+  // For binary/text responses (documents, images, etc.)
+  if (contentType.includes('application/pdf') ||
+      contentType.includes('image/') ||
+      contentType.includes('text/') ||
+      contentType.includes('application/octet-stream')) {
+
+    // For these types, return the response as text/buffer
+    const responseData = await response.text();
+
+    return {
+      data: responseData,
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    };
+  }
+
+  // Default: try to parse as JSON, fallback to text
+  try {
+    return {
+      data: await response.json(),
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    };
+  } catch {
+    return {
+      data: await response.text(),
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    };
+  }
+}
 }
 
 // Singleton instance
