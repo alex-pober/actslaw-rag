@@ -76,6 +76,7 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDirection, setSelectedDirection] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'category'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -113,6 +114,14 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
     }
   };
 
+  // Helper function to extract file extension from document name
+  const getFileExtension = (documentName: string) => {
+    if (!documentName) return 'unknown';
+    const lastDotIndex = documentName.lastIndexOf('.');
+    if (lastDotIndex === -1) return 'no extension';
+    return documentName.substring(lastDotIndex + 1).toLowerCase();
+  };
+
   // Get unique values for filters
   const categories = useMemo(() => {
     const cats = Array.from(new Set(documents.map(doc => doc.categoryName).filter(Boolean))).sort();
@@ -125,8 +134,13 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
   }, [documents]);
 
   const types = useMemo(() => {
-    const types = Array.from(new Set(documents.map(doc => doc.docType).filter(Boolean))).sort();
-    return types;
+    const extensions = Array.from(new Set(documents.map(doc => getFileExtension(doc.documentName)).filter(Boolean))).sort();
+    return extensions;
+  }, [documents]);
+
+  const priorities = useMemo(() => {
+    const priorities = Array.from(new Set(documents.map(doc => doc.priorityName).filter(Boolean))).sort();
+    return priorities;
   }, [documents]);
 
   // Filter and sort documents
@@ -140,9 +154,10 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
 
       const matchesCategory = selectedCategory === 'all' || doc.categoryName === selectedCategory;
       const matchesDirection = selectedDirection === 'all' || doc.directionName === selectedDirection;
-      const matchesType = selectedType === 'all' || doc.docType === selectedType;
+      const matchesType = selectedType === 'all' || getFileExtension(doc.documentName) === selectedType;
+      const matchesPriority = selectedPriority === 'all' || doc.priorityName === selectedPriority;
 
-      return matchesSearch && matchesCategory && matchesDirection && matchesType;
+      return matchesSearch && matchesCategory && matchesDirection && matchesType && matchesPriority;
     });
 
     // Sort documents
@@ -174,7 +189,7 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
     });
 
     return filtered;
-  }, [documents, searchTerm, selectedCategory, selectedDirection, selectedType, sortBy, sortOrder]);
+  }, [documents, searchTerm, selectedCategory, selectedDirection, selectedType, selectedPriority, sortBy, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedDocuments.length / ITEMS_PER_PAGE);
@@ -196,15 +211,32 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
     });
   };
 
-  const getDocumentIcon = (docType: string | undefined | null) => {
-    if (!docType) return <FileText className="w-4 h-4" />;
+  const getDocumentIcon = (documentName: string) => {
+    const extension = getFileExtension(documentName);
 
-    switch (docType.toLowerCase()) {
-      case 'img':
-      case 'incoming mail':
-        return <FileImage className="w-4 h-4" />;
-      case 'email':
-        return <Mail className="w-4 h-4" />;
+    switch (extension) {
+      case 'pdf':
+        return <FileText className="w-4 h-4 text-red-500" />;
+      case 'docx':
+      case 'doc':
+        return <FileText className="w-4 h-4 text-blue-500" />;
+      case 'msg':
+        return <Mail className="w-4 h-4 text-green-500" />;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+      case 'tiff':
+        return <FileImage className="w-4 h-4 text-purple-500" />;
+      case 'xlsx':
+      case 'xls':
+        return <FileText className="w-4 h-4 text-green-600" />;
+      case 'pptx':
+      case 'ppt':
+        return <FileText className="w-4 h-4 text-orange-500" />;
+      case 'txt':
+        return <FileText className="w-4 h-4 text-gray-500" />;
       default:
         return <FileText className="w-4 h-4" />;
     }
@@ -284,7 +316,7 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
 
         {/* Expandable Filters */}
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Category</label>
               <Select value={selectedCategory} onValueChange={(value) => {
@@ -315,7 +347,6 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
                 <SelectContent>
                   <SelectItem value="all">All Directions</SelectItem>
                   {directions.map(direction => (
-                    //@ts-ignore
                     <SelectItem key={direction} value={direction}>{direction}</SelectItem>
                   ))}
                 </SelectContent>
@@ -323,7 +354,7 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Document Type</label>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">File Type</label>
               <Select value={selectedType} onValueChange={(value) => {
                 setSelectedType(value);
                 handleFilterChange();
@@ -332,9 +363,29 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="all">All File Types</SelectItem>
                   {types.map(type => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                    <SelectItem key={type} value={type}>
+                      .{type} {type === 'unknown' ? '(no extension)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Priority</label>
+              <Select value={selectedPriority} onValueChange={(value) => {
+                setSelectedPriority(value);
+                handleFilterChange();
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  {priorities.map(priority => (
+                    <SelectItem key={priority} value={priority}>{priority}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -365,7 +416,7 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-3 flex-1 min-w-0">
                 <div className="text-gray-400 mt-1">
-                  {getDocumentIcon(doc.docType)}
+                  {getDocumentIcon(doc.documentName)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-1">
@@ -394,6 +445,9 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
                     </Badge>
                     <Badge className={getPriorityColor(doc.priority)}>
                       {doc.priorityName}
+                    </Badge>
+                    <Badge variant="outline" className="bg-gray-50">
+                      .{getFileExtension(doc.documentName)}
                     </Badge>
 
                     <div className="flex items-center space-x-4 ml-2">
