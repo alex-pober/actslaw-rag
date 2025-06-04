@@ -84,8 +84,8 @@ export function CaseProvider({ children }: { children: ReactNode }) {
 
       // Clear related data when switching cases
       setCaseDocuments(null);
-      setCaseNotes(null);
-      setCaseContacts(null);
+      // setCaseNotes(null);
+      // setCaseContacts(null);
 
       // Store in localStorage for persistence
       localStorage.setItem('currentCase', JSON.stringify(caseInfo));
