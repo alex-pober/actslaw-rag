@@ -5,7 +5,7 @@ import { PropsWithChildren } from 'react';
 
 export default async function LoginLayout({ children }: PropsWithChildren) {
   // Keep cookies in the JS execution context for Next.js build
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   const supabase = createServerComponentClient({ cookies: () => cookieStore });
 

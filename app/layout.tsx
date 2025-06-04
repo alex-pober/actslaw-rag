@@ -1,6 +1,6 @@
 // app/layout.tsx
 import Navbar from '@/components/Navbar';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/sonner';
 import Providers from '@/lib/providers';
 import { CaseProvider } from '@/lib/contexts/case-context';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -16,7 +16,7 @@ export const metadata = {
 
 export default async function RootLayout({ children }: PropsWithChildren) {
   // Keep cookies in the JS execution context for Next.js build
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   const supabase = createServerComponentClient({ cookies: () => cookieStore });
 

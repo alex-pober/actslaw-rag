@@ -44,7 +44,7 @@ export default function Navbar({ user }: NavbarProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
   // Load case from URL parameter on mount and when URL changes
   useEffect(() => {
@@ -73,7 +73,7 @@ export default function Navbar({ user }: NavbarProps) {
     debounceRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const results = await smartAdvocateClient.request(`case/CaseInfo?Casenumber=${searchQuery.trim()}`);
+        const results = await smartAdvocateClient.makeRequest(`case/CaseInfo?Casenumber=${searchQuery.trim()}`);
 
         const casesArray = Array.isArray(results) ? results : [results];
         setSearchResults(casesArray.filter(Boolean));
@@ -173,14 +173,14 @@ export default function Navbar({ user }: NavbarProps) {
                 className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Chat</span>
+                <span>AI</span>
               </Link>
               <Link
                 href="/smartadvocate"
                 className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 <Search className="w-4 h-4" />
-                <span>Cases</span>
+                <span>Case Info</span>
               </Link>
             </div>
           )}
@@ -191,7 +191,7 @@ export default function Navbar({ user }: NavbarProps) {
           <div className="flex-1 max-w-lg mx-8">
             {currentCase ? (
               /* Current Case Display - Full Width When Case Selected */
-              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-4 py-3">
+              (<div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-blue-900 truncate">
                     Case #{currentCase.caseNumber}
@@ -221,10 +221,10 @@ export default function Navbar({ user }: NavbarProps) {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
+              </div>)
             ) : (
               /* Search Bar - Show When No Case Selected */
-              <div className="relative" ref={searchRef}>
+              (<div className="relative" ref={searchRef}>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
@@ -242,7 +242,6 @@ export default function Navbar({ user }: NavbarProps) {
                     </div>
                   )}
                 </div>
-
                 {/* Search Results Dropdown */}
                 {showResults && searchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
@@ -260,7 +259,6 @@ export default function Navbar({ user }: NavbarProps) {
                     ))}
                   </div>
                 )}
-
                 {/* No Results */}
                 {showResults && searchResults.length === 0 && searchQuery.trim() && !isSearching && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50">
@@ -269,7 +267,7 @@ export default function Navbar({ user }: NavbarProps) {
                     </div>
                   </div>
                 )}
-              </div>
+              </div>)
             )}
           </div>
         )}

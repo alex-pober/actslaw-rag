@@ -30,6 +30,7 @@ import DocumentViewer from '@/components/DocumentViewer';
 import smartAdvocateClient from '@/lib/smartadvocate/client';
 
 interface Document {
+  modifiedDate(modifiedDate: any): import("react").ReactNode;
   documentID: number;
   caseID: number;
   caseNumber: string;
@@ -421,19 +422,14 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-1">
                     <h4 className="font-medium text-gray-900 truncate">
-                      {doc.documentName}
+                      {doc.description}
                     </h4>
                     {doc.attachFlag && (
                       <Badge variant="outline" className="text-xs">Attachment</Badge>
                     )}
-                    {!doc.isReviewed && (
-                      <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
-                        Needs Review
-                      </Badge>
-                    )}
                   </div>
 
-                  <p className="text-sm text-gray-600 mb-2">{doc.description || 'No description'}</p>
+                  <p className="text-sm text-gray-600 mb-2">{doc.documentName || 'No description'}</p>
 
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <Badge className={getDirectionColor(doc.directionName)}>
@@ -454,6 +450,8 @@ export default function DocumentsList({ documents }: DocumentsListProps) {
                       <div className="flex items-center space-x-1">
                         <Calendar className="w-3 h-3" />
                         <span>{formatDate(doc.documentDate)}</span>
+
+                        <span>{formatDate(doc.modifiedDate)}</span>
                       </div>
 
                       {doc.fromContactName && (
