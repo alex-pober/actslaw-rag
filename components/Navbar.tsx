@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Search, User, LogOut, Settings, Home, FileText, MessageSquare, X } from 'lucide-react';
+import { Search, User, LogOut, Settings, Home, MessageSquare, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -51,10 +51,6 @@ export default function Navbar({ user }: NavbarProps) {
     const caseParam = searchParams.get('case');
     if (caseParam && (!currentCase || currentCase.caseNumber !== caseParam)) {
       loadCase(caseParam);
-    } else if (!caseParam && currentCase) {
-      // If there's no case parameter in URL but we have a current case,
-      // and we're not loading, this might be from localStorage
-      // Don't auto-clear in this case, let the user decide
     }
   }, [searchParams]);
 
@@ -111,15 +107,8 @@ export default function Navbar({ user }: NavbarProps) {
     setSearchQuery('');
     await loadCase(caseNumber);
 
-    // Update URL without full page reload
-    const url = new URL(window.location.href);
-    url.searchParams.set('case', caseNumber);
-    window.history.pushState({}, '', url.toString());
-
-    // Navigate to case view if not already there
-    if (!window.location.pathname.includes('/smartadvocate')) {
-      router.push(`/smartadvocate?case=${caseNumber}`);
-    }
+    // Navigate to the case overview page
+    router.push(`/smartadvocate/${caseNumber}`);
   };
 
   const handleSignOut = async () => {
@@ -130,10 +119,10 @@ export default function Navbar({ user }: NavbarProps) {
 
   const handleClearCase = () => {
     clearCase();
-    // Clear search state
     setSearchQuery('');
     setSearchResults([]);
     setShowResults(false);
+    router.push('/smartadvocate');
   };
 
   const getUserInitials = (email: string) => {
@@ -162,11 +151,11 @@ export default function Navbar({ user }: NavbarProps) {
           {user && (
             <div className="hidden md:flex items-center space-x-1">
               <Link
-                href="/files"
+                href="/"
                 className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
-                <FileText className="w-4 h-4" />
-                <span>Files</span>
+                <Home className="w-4 h-4" />
+                <span>Home</span>
               </Link>
               <Link
                 href="/chat"
@@ -211,7 +200,6 @@ export default function Navbar({ user }: NavbarProps) {
                     className="text-blue-600 hover:text-blue-800 p-1"
                     title="Search for different case"
                   >
-                    <Search className="w-4 h-4" />
                   </button>
                   <button
                     onClick={handleClearCase}

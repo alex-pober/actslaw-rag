@@ -44,6 +44,7 @@ interface CaseContextType {
   error: string | null;
   loadCase: (saNumber: string) => Promise<void>;
   clearCase: () => void;
+  isClearing: boolean;
   // Cache for related data
   caseDocuments: any[] | null;
   caseNotes: any[] | null;
@@ -59,6 +60,7 @@ const CaseContext = createContext<CaseContextType | undefined>(undefined);
 export function CaseProvider({ children }: { children: ReactNode }) {
   const [currentCase, setCurrentCase] = useState<CaseData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Related data caches
@@ -67,7 +69,7 @@ export function CaseProvider({ children }: { children: ReactNode }) {
   const [caseContacts, setCaseContacts] = useState<any[] | null>(null);
 
   const loadCase = async (saNumber: string) => {
-    if (!saNumber.trim()) return;
+    if (!saNumber.trim() || isClearing) return;
 
     try {
       setIsLoading(true);
@@ -99,17 +101,18 @@ export function CaseProvider({ children }: { children: ReactNode }) {
   };
 
   const clearCase = () => {
+    setIsClearing(true);
     setCurrentCase(null);
     setError(null);
     setCaseDocuments(null);
     setCaseNotes(null);
     setCaseContacts(null);
     localStorage.removeItem('currentCase');
-
-    // Also clear the URL parameter to prevent reloading
-    const url = new URL(window.location.href);
-    url.searchParams.delete('case');
-    window.history.replaceState({}, '', url.toString());
+    
+    // Reset clearing flag after a brief delay
+    setTimeout(() => {
+      setIsClearing(false);
+    }, 100);
   };
 
   const loadCaseDocuments = async () => {
@@ -166,6 +169,7 @@ export function CaseProvider({ children }: { children: ReactNode }) {
       value={{
         currentCase,
         isLoading,
+        isClearing,
         error,
         loadCase,
         clearCase,

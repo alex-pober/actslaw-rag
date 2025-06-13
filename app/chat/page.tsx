@@ -312,9 +312,11 @@ export default function ChatPage() {
     );
   }
 
+  // Main return statement
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="w-full max-w-8xl mx-auto p-4 md:p-6 space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Chat with Case Documents</h1>
           <p className="text-gray-600 mt-1">
@@ -324,7 +326,7 @@ export default function ChatPage() {
         <Button
           onClick={syncAllDocuments}
           disabled={syncingAll || documentStatuses.every(d => d.status === 'ready')}
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-2 w-full md:w-auto"
         >
           {syncingAll ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -335,174 +337,180 @@ export default function ChatPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Main Content Area */}
+      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)]">
         {/* Document Status Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Document Status</CardTitle>
-            <CardDescription>
-              {documentStatuses.length} documents found •
-              {documentStatuses.filter(d => d.status === 'ready').length} ready •
-              {selectedDocuments.length} selected
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[400px] pr-4">
-              {loading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {documentStatuses.map((docStatus) => (
-                    <div
-                      key={docStatus.saDocument.documentID}
-                      className={cn(
-                        "border rounded-lg p-3 space-y-2 cursor-pointer transition-colors",
-                        selectedDocuments.includes(docStatus.saDocument.documentID)
-                          ? "border-blue-500 bg-blue-50"
-                          : "hover:bg-gray-50"
-                      )}
-                      onClick={() => docStatus.status === 'ready' && toggleDocumentSelection(docStatus.saDocument.documentID)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-2 flex-1">
-                          <FileText className="w-4 h-4 mt-0.5 text-gray-400" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">
-                              {docStatus.saDocument.documentName}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {docStatus.saDocument.categoryName} •
-                              Modified: {new Date(docStatus.saDocument.modifiedDate).toLocaleDateString()}
-                            </p>
-                            {docStatus.status === 'ready' && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                {docStatus.sectionCount} sections •
-                                {docStatus.embeddedSectionCount} embedded
+        <div className="w-full lg:w-1/3 xl:w-1/4">
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Documents</CardTitle>
+              <CardDescription className="text-xs">
+                {documentStatuses.length} total • {documentStatuses.filter(d => d.status === 'ready').length} ready • {selectedDocuments.length} selected
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <ScrollArea className="h-[calc(100vh-220px)] pr-2">
+                {loading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {documentStatuses.map((docStatus) => (
+                      <div
+                        key={docStatus.saDocument.documentID}
+                        className={cn(
+                          "border rounded-lg p-3 space-y-2 cursor-pointer transition-colors",
+                          selectedDocuments.includes(docStatus.saDocument.documentID)
+                            ? "border-blue-500 bg-blue-50"
+                            : "hover:bg-gray-50"
+                        )}
+                        onClick={() => docStatus.status === 'ready' && toggleDocumentSelection(docStatus.saDocument.documentID)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-2 flex-1">
+                            <FileText className="w-4 h-4 mt-0.5 text-gray-400" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">
+                                {docStatus.saDocument.documentName}
                               </p>
-                            )}
-                            {docStatus.syncError && (
-                              <p className="text-xs text-red-600 mt-1">
-                                Error: {docStatus.syncError}
+                              <p className="text-xs text-gray-600">
+                                {docStatus.saDocument.categoryName} •
+                                Modified: {new Date(docStatus.saDocument.modifiedDate).toLocaleDateString()}
                               </p>
+                              {docStatus.status === 'ready' && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {docStatus.sectionCount} sections •
+                                  {docStatus.embeddedSectionCount} embedded
+                                </p>
+                              )}
+                              {docStatus.syncError && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  Error: {docStatus.syncError}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {getStatusIcon(syncing[docStatus.saDocument.documentID] ? 'syncing' : docStatus.status)}
+                            {getStatusBadge(syncing[docStatus.saDocument.documentID] ? 'syncing' : docStatus.status)}
+                            {(docStatus.status === 'not_synced' || docStatus.status === 'needs_update') && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  syncDocument(docStatus.saDocument.documentID);
+                                }}
+                                disabled={syncing[docStatus.saDocument.documentID]}
+                              >
+                                <RefreshCw className={cn(
+                                  "w-3 h-3",
+                                  syncing[docStatus.saDocument.documentID] && "animate-spin"
+                                )} />
+                              </Button>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(syncing[docStatus.saDocument.documentID] ? 'syncing' : docStatus.status)}
-                          {getStatusBadge(syncing[docStatus.saDocument.documentID] ? 'syncing' : docStatus.status)}
-                          {(docStatus.status === 'not_synced' || docStatus.status === 'needs_update') && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                syncDocument(docStatus.saDocument.documentID);
-                              }}
-                              disabled={syncing[docStatus.saDocument.documentID]}
-                            >
-                              <RefreshCw className={cn(
-                                "w-3 h-3",
-                                syncing[docStatus.saDocument.documentID] && "animate-spin"
-                              )} />
-                            </Button>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Chat Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Chat</CardTitle>
-            <CardDescription>
-              Ask questions about {selectedDocuments.length > 0 ? 'selected' : 'all synced'} documents
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <ScrollArea className="h-[300px] pr-4">
-                <div className="space-y-4">
-                  {messages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={cn(
-                        "flex",
-                        message.role === 'user' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
+        <div className="flex-1 flex flex-col">
+          <Card className="flex-1 flex flex-col">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-t-lg border-b">
+              <CardTitle>AI Legal Assistant</CardTitle>
+              <CardDescription>
+                Ask questions about {selectedDocuments.length > 0 ? 'selected' : 'all synced'} documents
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 p-0 flex flex-col">
+              <div className="flex-1 p-4">
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-4">
+                    {messages.map((message, index) => (
                       <div
+                        key={index}
                         className={cn(
-                          "max-w-[80%] rounded-lg px-4 py-2",
-                          message.role === 'user'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-800'
+                          "flex",
+                          message.role === 'user' ? 'justify-end' : 'justify-start'
                         )}
                       >
-                        <p className="text-sm">{message.content}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 rounded-lg px-4 py-2">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+                        <div
+                          className={cn(
+                            "max-w-[80%] rounded-lg px-4 py-2",
+                            message.role === 'user'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-800'
+                          )}
+                        >
+                          <p className="text-sm">{message.content}</p>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-
-              <Separator />
-
-              <div className="flex space-x-2">
-                <Input
-                  type="text"
-                  placeholder="Ask about the documents..."
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleChatSubmit(e);
-                    }
-                  }}
-                  disabled={!isReady || isLoading}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleChatSubmit}
-                  disabled={!isReady || isLoading || !input.trim()}
-                  className="flex items-center space-x-2"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  <span>Send</span>
-                </Button>
+                    ))}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 rounded-lg px-4 py-2">
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
 
-              {!isReady && (
-                <p className="text-sm text-gray-500 text-center">
-                  Loading AI model...
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              <div className="border-t p-4">
+                <div className="flex space-x-2">
+                  <Input
+                    type="text"
+                    placeholder="Ask about the documents..."
+                    value={input}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleChatSubmit(e);
+                      }
+                    }}
+                    disabled={!isReady || isLoading}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleChatSubmit}
+                    disabled={!isReady || isLoading || !input.trim()}
+                    className="flex items-center space-x-2"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    <span>Send</span>
+                  </Button>
+                </div>
+
+                {!isReady && (
+                  <div className="mt-2">
+                    <p className="text-xs text-center text-muted-foreground">
+                      <Loader2 className="inline w-3 h-3 mr-1 animate-spin" />
+                      Loading AI model...
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

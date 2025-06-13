@@ -346,6 +346,19 @@ async getDocumentContent(documentId: string | number) {
     status: response.status
   });
 
+  // Log raw response data for debugging
+  const responseClone = response.clone();
+  const arrayBuffer = await responseClone.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  console.log(`Raw response data for document ${documentId}:`, {
+    byteLength: arrayBuffer.byteLength,
+    first20Bytes: Array.from(uint8Array.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '),
+    firstBytesAsString: String.fromCharCode.apply(null, Array.from(uint8Array.slice(0, 50))),
+    contentType,
+    headers: Object.fromEntries(response.headers.entries())
+  });
+
   // If it's JSON, parse it
   if (contentType.includes('application/json')) {
     return await response.json();
@@ -368,22 +381,45 @@ async getDocumentContent(documentId: string | number) {
     };
   }
 
-  // For MSG files (Outlook messages), we'll handle them specially
+  // For MSG files and other binary content (including DOCX), we need to examine the content
   if (contentType.includes('application/vnd.ms-outlook') ||
       contentType.includes('application/octet-stream')) {
 
-    // Get the first few bytes to check if it's an MSG file
+    // Get the binary data to examine file signatures
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
 
-    // MSG files start with specific OLE compound document signature
-    const signature = Array.from(uint8Array.slice(0, 8))
+    // Check for different file signatures
+    const oleSignature = Array.from(uint8Array.slice(0, 8))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    const zipSignature = Array.from(uint8Array.slice(0, 4))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
-    const isMSG = signature === 'd0cf11e0a1b11ae1'; // OLE compound document signature
+    const isMSG = oleSignature === 'd0cf11e0a1b11ae1'; // OLE compound document signature
+    const isZip = zipSignature === '504b0304'; // ZIP signature (DOCX files are ZIP archives)
 
-    console.log(`Document ${documentId} signature: ${signature}, isMSG: ${isMSG}`);
+    console.log(`Document ${documentId} signatures - OLE: ${oleSignature}, ZIP: ${zipSignature}, isMSG: ${isMSG}, isZip: ${isZip}`);
+
+    // Check if it's a DOCX file (ZIP archive containing Office Open XML)
+    if (isZip) {
+      // DOCX files are ZIP archives, so create a proper DOCX blob
+      const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      console.log(`Created DOCX blob URL for document ${documentId}:`, blobUrl);
+
+      return {
+        content: null,
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        downloadUrl: blobUrl,
+        fileName: `document_${documentId}.docx`,
+        fileSize: arrayBuffer.byteLength,
+        isDOCXFile: true,
+        rawBlob: blob // Store the actual blob for docx-preview
+      };
+    }
 
     if (isMSG) {
       // For MSG files, we'll try to extract readable content
@@ -402,7 +438,7 @@ async getDocumentContent(documentId: string | number) {
       };
     }
 
-    // If not MSG, handle as generic binary
+    // If not MSG or DOCX, handle as generic binary
     const blob = new Blob([arrayBuffer], { type: contentType });
     const blobUrl = URL.createObjectURL(blob);
 

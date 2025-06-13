@@ -1,19 +1,16 @@
 // components/DocumentViewer.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
 import {
   Download,
-  X,
   FileText,
   FileImage,
   Mail,
@@ -26,6 +23,7 @@ import {
 } from 'lucide-react';
 import smartAdvocateClient from '@/lib/smartadvocate/client';
 import { parseMSGFile, type MSGContent } from '@/lib/smartadvocate/msg-parser';
+import DocViewer, { DocViewerRenderers } from '@cyntler/react-doc-viewer';
 
 interface Document {
   documentID: number;
@@ -46,6 +44,7 @@ interface DocumentViewerProps {
   document: Document | null;
   isOpen: boolean;
   onClose: () => void;
+  mode?: 'modal' | 'panel';
 }
 
 interface DocumentContent {
@@ -59,20 +58,25 @@ interface DocumentContent {
   isPDFBlob?: boolean;
   isPDFBinary?: boolean;
   isPDFText?: boolean;
+  isDOCXFile?: boolean;
   rawData?: ArrayBuffer;
+  rawBlob?: Blob;
 }
 
-export default function DocumentViewer({ document, isOpen, onClose }: DocumentViewerProps) {
+export default function DocumentViewer({ document, isOpen, onClose, mode = 'modal' }: DocumentViewerProps) {
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [parsedMSG, setParsedMSG] = useState<MSGContent | null>(null);
+  const renderAbortRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (document && isOpen) {
+      renderAbortRef.current = false;
       loadDocumentContent();
     } else {
+      renderAbortRef.current = true;
       setContent(null);
       setError(null);
       setParsedMSG(null);
@@ -90,7 +94,7 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
       console.log('Loading document content for ID:', document.documentID);
 
       const docContent = await smartAdvocateClient.getDocumentContent(document.documentID);
-      console.log('Document content loaded:', docContent);
+      console.log('Document content loaded:', document);
 
       setContent(docContent);
 
@@ -117,16 +121,22 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
     if (!document) return;
 
     try {
+      // Ensure we're in a browser environment
+      if (typeof window === 'undefined') {
+        console.warn('Not in browser environment, cannot download');
+        return;
+      }
+
       const blob = await smartAdvocateClient.downloadDocument(document.documentID);
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = window.document.createElement('a');
       a.style.display = 'none';
       a.href = url;
       a.download = document.documentName;
-      document.body.appendChild(a);
+      window.document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      window.document.body.removeChild(a);
     } catch (err: any) {
       setError(`Download failed: ${err.message}`);
     }
@@ -145,6 +155,34 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
         return <FileText className="w-5 h-5" />;
     }
   };
+
+  const getFileExtension = (fileName: string): string => {
+    if (!fileName) return '';
+    const lastDotIndex = fileName.lastIndexOf('.');
+    if (lastDotIndex === -1) return '';
+    return fileName.substring(lastDotIndex + 1).toLowerCase();
+  };
+
+  const isWordDocument = (fileName: string): boolean => {
+    const extension = getFileExtension(fileName);
+    return extension === 'doc' || extension === 'docx';
+  };
+
+  const isDocxDocument = (fileName: string): boolean => {
+    const extension = getFileExtension(fileName);
+    return extension === 'docx';
+  };
+
+  // No longer needed with the new library
+
+  // The new library doesn't need manual rendering - it's a React component
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      renderAbortRef.current = true;
+    };
+  }, []);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -366,7 +404,7 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
     // Handle PDF content from blob URL
     if (content.isPDFBlob && content.downloadUrl) {
       return (
-        <div className="h-96">
+        <div className="h-full">
           <iframe
             src={content.downloadUrl}
             className="w-full h-full border rounded"
@@ -479,15 +517,16 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
                 onClick={() => {
                   // Show raw content in a modal or expanded view
                   const newWindow = window.open('', '_blank');
-                  if (newWindow) {
-                    newWindow.document.write(`
+                  if (newWindow && newWindow.document) {
+                    const htmlContent = `
                       <html>
                         <head><title>Raw PDF Content - ${document?.documentName}</title></head>
                         <body style="font-family: monospace; white-space: pre-wrap; padding: 20px;">
                           ${content.content}
                         </body>
                       </html>
-                    `);
+                    `;
+                    newWindow.document.documentElement.innerHTML = htmlContent;
                   }
                 }}
               >
@@ -531,6 +570,155 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
       );
     }
 
+    // Handle Word documents (.doc and .docx)
+    if (content?.isDOCXFile || (document?.documentName && isWordDocument(document.documentName))) {
+      const extension = content?.isDOCXFile ? 'docx' : (document?.documentName ? getFileExtension(document.documentName) : 'doc');
+      const isDocx = content?.isDOCXFile || (document?.documentName && isDocxDocument(document.documentName));
+
+      // For DOCX files, show the preview using the new library
+      if (isDocx) {
+        return (
+          <div className="bg-gray-50 rounded-lg p-4 space-y-4 h-full overflow-y-auto">
+            {/* DOCX Document Header */}
+            <div className="bg-white rounded-lg p-4 border">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Microsoft Word Document ({extension.toUpperCase()})
+                  </h3>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownload}
+                    className="flex items-center space-x-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Download</span>
+                  </Button>
+                  {content?.downloadUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(content?.downloadUrl, '_blank')}
+                      className="flex items-center space-x-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Open</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-gray-700">Filename:</span>
+                  <p className="text-gray-900 text-xs mt-1 break-words">{document?.documentName}</p>
+                </div>
+                {content?.fileSize && (
+                  <div>
+                    <span className="font-medium text-gray-700">Size:</span>
+                    <p className="text-gray-900 text-xs mt-1">{formatFileSize(content.fileSize)}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium text-gray-700">Status:</span>
+                  <p className="text-gray-900 text-xs mt-1">Ready</p>
+                </div>
+              </div>
+            </div>
+
+            {/* DOCX Document Content */}
+            <div className="bg-white rounded-lg border flex-1 min-h-96">
+              {content?.downloadUrl ? (
+                <div className="h-96 w-full">
+                  <DocViewer
+                    documents={[{
+                      uri: content.downloadUrl,
+                      fileName: document?.documentName || `document.${extension}`
+                    }]}
+                    pluginRenderers={DocViewerRenderers}
+                    config={{
+                      header: {
+                        disableHeader: true,
+                      },
+                    }}
+                    style={{ height: '100%' }}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-96">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
+                    <p className="text-gray-600">Loading DOCX document...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* File Info Footer */}
+            <div className="text-center">
+              <div className="inline-flex items-center space-x-2 text-xs text-gray-500 bg-white px-3 py-2 rounded-full border">
+                <span>DOCX Document • {content?.fileSize ? formatFileSize(content.fileSize) : 'Unknown size'}</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // For DOC files (not supported by docx-preview), show download interface
+      return (
+        <div className="flex flex-col items-center justify-center h-96">
+          <div className="text-center mb-6">
+            <FileText className="w-16 h-16 mx-auto mb-4 text-blue-500" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Microsoft Word Document
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {extension.toUpperCase()} files cannot be previewed in the browser
+            </p>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 max-w-md">
+              <div className="flex items-start space-x-3">
+                <FileText className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-left">
+                  <p className="text-sm font-medium text-blue-900 mb-2">
+                    Document Information
+                  </p>
+                  <div className="space-y-1 text-xs text-blue-700">
+                    <p><span className="font-medium">Filename:</span> {document?.documentName}</p>
+                    {content?.fileSize && (
+                      <p><span className="font-medium">Size:</span> {formatFileSize(content.fileSize)}</p>
+                    )}
+                    <p><span className="font-medium">Format:</span> Legacy Word format (.doc)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col space-y-3 w-full max-w-sm">
+            <Button
+              onClick={handleDownload}
+              className="flex items-center justify-center space-x-2 w-full"
+              size="lg"
+            >
+              <Download className="w-5 h-5" />
+              <span>Download to View in Word</span>
+            </Button>
+
+            <div className="text-center">
+              <p className="text-xs text-gray-500">
+                Legacy .doc files require Microsoft Word or compatible applications for viewing
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Handle text content
     if (content.contentType?.includes('text/') || (content.content && !content.contentType?.includes('application/'))) {
       return (
@@ -560,8 +748,113 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
     );
   };
 
+  // Shared document header component
+  const DocumentHeader = ({ className = "", showFullscreen = true }: { className?: string; showFullscreen?: boolean }) => (
+    <div className={`flex items-start justify-between gap-4 ${className}`}>
+      {/* Left side - Document info */}
+      <div className="flex items-start space-x-3 flex-1 min-w-0">
+        <div className="text-gray-400 mt-1 flex-shrink-0">
+          {getDocumentIcon(document?.docType)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg font-semibold text-gray-900 break-words">
+            {document?.documentName}
+          </h3>
+          <p className="text-sm text-gray-600 mt-1 break-words">
+            {document?.description}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <Badge className={getDirectionColor(document?.directionName)}>
+              {document?.directionName || document?.docType}
+            </Badge>
+            <Badge variant="outline">
+              {document?.categoryName}
+              {document?.subCategoryName && ` • ${document.subCategoryName}`}
+            </Badge>
+            <Badge variant="outline">
+              {document?.priorityName}
+            </Badge>
+            {!document?.isReviewed && (
+              <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+                Needs Review
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
+            <span>{document && formatDate(document.documentDate)}</span>
+            {document?.fromContactName && (
+              <span>From: {document.fromContactName}</span>
+            )}
+            {document?.toContactName && document.toContactName !== document.fromContactName && (
+              <span>To: {document.toContactName}</span>
+            )}
+            {content?.fileSize && (
+              <span>Size: {formatFileSize(content.fileSize)}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right side - Action buttons */}
+      <div className="flex items-center space-x-2 flex-shrink-0">
+        {showFullscreen && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4" />
+            ) : (
+              <Maximize2 className="w-4 h-4" />
+            )}
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDownload}
+          title="Download"
+        >
+          <Download className="w-4 h-4" />
+        </Button>
+        {content?.downloadUrl && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(content.downloadUrl, '_blank')}
+            title="Open in new tab"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
   if (!document) return null;
 
+  // Panel mode - render directly without modal
+  if (mode === 'panel') {
+    return (
+      <div className="h-full flex flex-col bg-white sticky top-0">
+        {/* Header */}
+        <div className="flex-shrink-0 p-4 border-b sticky top-0 bg-white z-10">
+          <DocumentHeader showFullscreen={false} />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-4">
+          {renderContent()}
+        </div>
+      </div>
+    );
+  }
+
+  // Modal mode - original behavior
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`${
@@ -572,87 +865,7 @@ export default function DocumentViewer({ document, isOpen, onClose }: DocumentVi
 
         {/* Header Section - Fixed height */}
         <DialogHeader className="flex-shrink-0 pb-4 border-b">
-          <div className="flex items-start justify-between gap-4">
-            {/* Left side - Document info */}
-            <div className="flex items-start space-x-3 flex-1 min-w-0">
-              <div className="text-gray-400 mt-1 flex-shrink-0">
-                {getDocumentIcon(document.docType)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <DialogTitle className="text-lg font-semibold text-gray-900 break-words">
-                  {document.documentName}
-                </DialogTitle>
-                <DialogDescription className="text-sm text-gray-600 mt-1 break-words">
-                  {document.description}
-                </DialogDescription>
-
-                <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <Badge className={getDirectionColor(document.directionName)}>
-                    {document.directionName || document.docType}
-                  </Badge>
-                  <Badge variant="outline">
-                    {document.categoryName}
-                    {document.subCategoryName && ` • ${document.subCategoryName}`}
-                  </Badge>
-                  <Badge variant="outline">
-                    {document.priorityName}
-                  </Badge>
-                  {!document.isReviewed && (
-                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-                      Needs Review
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
-                  <span>{formatDate(document.documentDate)}</span>
-                  {document.fromContactName && (
-                    <span>From: {document.fromContactName}</span>
-                  )}
-                  {document.toContactName && document.toContactName !== document.fromContactName && (
-                    <span>To: {document.toContactName}</span>
-                  )}
-                  {content?.fileSize && (
-                    <span>Size: {formatFileSize(content.fileSize)}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right side - Action buttons */}
-            <div className="flex items-center space-x-2 flex-shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="w-4 h-4" />
-                ) : (
-                  <Maximize2 className="w-4 h-4" />
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                title="Download"
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-              {content?.downloadUrl && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(content.downloadUrl, '_blank')}
-                  title="Open in new tab"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          </div>
+          <DocumentHeader />
         </DialogHeader>
 
         {/* Content Section - Flexible height */}

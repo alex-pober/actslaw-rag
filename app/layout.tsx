@@ -26,7 +26,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 
   return (
     <html lang="en" className="h-full">
-      <body className="h-full">
+      <body>
         <Providers>
           <CaseProvider>
             <div className="flex flex-col min-h-screen">

@@ -71,6 +71,10 @@ async function handleRequest(request: NextRequest, { params }: { params: { path:
       const contentType = directResponse.headers.get('content-type') || 'application/octet-stream';
 
       console.log(`Document response - Content-Type: ${contentType}, Size: ${arrayBuffer.byteLength} bytes`);
+      
+      // Log raw response headers and first bytes for debugging
+      const responseHeaders = Object.fromEntries(directResponse.headers.entries());
+      console.log(`SmartAdvocate API response headers:`, responseHeaders);
 
       // Check if it's a PDF by examining the first few bytes
       const firstBytes = new Uint8Array(arrayBuffer.slice(0, 10));
