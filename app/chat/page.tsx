@@ -73,7 +73,7 @@ export default function ChatPage() {
     try {
       // Get documents from SmartAdvocate
       const saDocuments = await smartAdvocateClient.makeRequest(
-        `case/${currentCase.caseID}/documents?currentPage=0&pageSize=200`,
+        `case/${currentCase.caseID}`,
         { params: { currentPage: '0', pageSize: '200' } }
       );
 

@@ -119,10 +119,8 @@ export function CaseProvider({ children }: { children: ReactNode }) {
     if (!currentCase) return;
 
     try {
-      // Use the makeRequest method directly or create a specific endpoint
-      const documents = await smartAdvocateClient.makeRequest(`case/${currentCase.caseID}/documents?currentPage=0&pageSize=200`, {
-        params: { currentPage: '0', pageSize: '200' }
-      });
+      // Use the dedicated method for loading case documents
+      const documents = await smartAdvocateClient.getCaseDocuments(currentCase.caseID);
       setCaseDocuments(documents);
     } catch (error) {
       console.error('Failed to load case documents:', error);
@@ -133,7 +131,7 @@ export function CaseProvider({ children }: { children: ReactNode }) {
     if (!currentCase) return;
 
     try {
-      const notes = await smartAdvocateClient.makeRequest(`case/${currentCase.caseNumber}/notes`);
+      const notes = await smartAdvocateClient.getCaseNotes(currentCase.caseNumber);
       setCaseNotes(notes);
     } catch (error) {
       console.error('Failed to load case notes:', error);
@@ -144,7 +142,7 @@ export function CaseProvider({ children }: { children: ReactNode }) {
     if (!currentCase) return;
 
     try {
-      const contacts = await smartAdvocateClient.makeRequest(`case/${currentCase.caseNumber}/contacts`);
+      const contacts = await smartAdvocateClient.getCaseContacts(currentCase.caseNumber);
       setCaseContacts(contacts);
     } catch (error) {
       console.error('Failed to load case contacts:', error);

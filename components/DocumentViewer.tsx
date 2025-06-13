@@ -427,7 +427,7 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
     // Handle PDF content from binary method
     if (content.isPDFBinary && content.downloadUrl) {
       return (
-        <div className="h-96">
+        <div className="h-96 z-0">
           <iframe
             src={content.downloadUrl}
             className="w-full h-full border rounded"
@@ -475,7 +475,7 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
         }
 
         return (
-          <div className="h-96">
+          <div className="h-96 z-0">
             <iframe
               src={pdfUrl}
               className="w-full h-full border rounded"

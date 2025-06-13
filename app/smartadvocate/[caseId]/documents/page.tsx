@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useCase } from '@/lib/contexts/case-context';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, X } from 'lucide-react';
+import { FileText, X, Loader2 } from 'lucide-react';
 import DocumentsList from '@/components/DocumentsList';
 import DocumentViewer from '@/components/DocumentViewer';
 
@@ -104,14 +104,9 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       };
@@ -151,11 +146,9 @@ export default function DocumentsPage() {
         >
           <div className="h-full overflow-hidden">
             {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                  <p className="text-gray-600">Loading documents...</p>
-                </div>
+              <div className="flex flex-col items-center justify-center h-[50vh] w-full">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
+                <p className="text-muted-foreground text-base font-medium">Loading documents...</p>
               </div>
             ) : caseDocuments && caseDocuments.length > 0 ? (
               <DocumentsList
@@ -183,6 +176,24 @@ export default function DocumentsPage() {
           >
             <div className="absolute inset-y-2 -inset-x-1 group-hover:bg-blue-400/20"></div>
           </div>
+        )}
+
+        {/* Overlay for resizing - captures mouse events even over PDFs */}
+        {isDragging && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              zIndex: 9999,
+              cursor: 'col-resize',
+              background: 'transparent',
+            }}
+            onMouseMove={handleMouseMove as any}
+            onMouseUp={handleMouseUp as any}
+          />
         )}
 
         {/* Document Viewer - Right Pane */}

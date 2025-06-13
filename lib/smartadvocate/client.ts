@@ -126,15 +126,6 @@ class SmartAdvocateClient {
     }
   }
 
-  // Case-related methods with caching
-  async getCases(params?: Record<string, string>) {
-    return this.makeRequest('case/CaseInfo', {
-      params,
-      cache: true,
-      cacheDuration: 10 * 60 * 1000 // 10 minutes for case lists
-    });
-  }
-
   async getCase(caseSA: string | number) {
     return this.makeRequest(`case/CaseInfo?Casenumber=${caseSA}`, {
       cache: true,
@@ -142,55 +133,31 @@ class SmartAdvocateClient {
     });
   }
 
-  async getCaseDocuments(caseSA: string | number) {
-    return this.makeRequest(`case/${caseSA}/documents`, {
-      cache: true,
-      cacheDuration: 2 * 60 * 1000 // 2 minutes for documents
-    });
+  // async getCaseDocuments(caseSA: string | number) {
+  //   return this.makeRequest(`case/${caseSA}/documents`, {
+  //     cache: true,
+  //     cacheDuration: 2 * 60 * 1000 // 2 minutes for documents
+  //   });
+  // }
+
+  // async getCaseNotes(caseSA: string | number) {
+  //   return this.makeRequest(`case/${caseSA}/notes?currentPage=0&pageSize=200`, {
+  //     cache: true,
+  //     cacheDuration: 30 * 1000 // 30 seconds for notes (more dynamic)
+  //   });
+  // }
+
+  // Dedicated case methods
+  async getCaseDocuments(caseId: string) {
+    return this.makeRequest(`case/${caseId}/documents?currentPage=0&pageSize=200`);
   }
 
-  async getCaseNotes(caseSA: string | number) {
-    return this.makeRequest(`case/${caseSA}/notes`, {
-      cache: true,
-      cacheDuration: 30 * 1000 // 30 seconds for notes (more dynamic)
-    });
+  async getCaseNotes(caseNumber: string) {
+    return this.makeRequest(`case/${caseNumber}/notes`);
   }
 
-  async getCaseTasks(caseSA: string | number) {
-    return this.makeRequest(`case/${caseSA}/tasks`, {
-      cache: true,
-      cacheDuration: 60 * 1000 // 1 minute for tasks
-    });
-  }
-
-  async getCaseTimeline(caseSA: string | number) {
-    return this.makeRequest(`case/${caseSA}/timeline`, {
-      cache: true,
-      cacheDuration: 5 * 60 * 1000 // 5 minutes for timeline
-    });
-  }
-
-  async getCaseContacts(caseSA: string | number) {
-    return this.makeRequest(`case/${caseSA}/contacts`, {
-      cache: true,
-      cacheDuration: 10 * 60 * 1000 // 10 minutes for contacts
-    });
-  }
-
-  // Contact methods
-  async getContacts(params?: Record<string, string>) {
-    return this.makeRequest('contacts', {
-      params,
-      cache: true,
-      cacheDuration: 15 * 60 * 1000 // 15 minutes for contact lists
-    });
-  }
-
-  async getContact(contactId: string | number) {
-    return this.makeRequest(`contacts/${contactId}`, {
-      cache: true,
-      cacheDuration: 10 * 60 * 1000
-    });
+  async getCaseContacts(caseNumber: string) {
+    return this.makeRequest(`case/${caseNumber}/contacts`);
   }
 
   // Document methods
@@ -214,20 +181,16 @@ class SmartAdvocateClient {
     const promises = [
       this.getCase(caseSA),
       this.getCaseDocuments(caseSA),
-      this.getCaseNotes(caseSA),
-      this.getCaseTasks(caseSA),
-      this.getCaseContacts(caseSA)
+      this.getCaseNotes(caseSA)
     ];
 
     try {
-      const [caseData, documents, notes, tasks, contacts] = await Promise.allSettled(promises);
+      const [caseData, documents, notes] = await Promise.allSettled(promises);
 
       return {
         case: caseData.status === 'fulfilled' ? caseData.value : null,
         documents: documents.status === 'fulfilled' ? documents.value : [],
-        notes: notes.status === 'fulfilled' ? notes.value : [],
-        tasks: tasks.status === 'fulfilled' ? tasks.value : [],
-        contacts: contacts.status === 'fulfilled' ? contacts.value : []
+        notes: notes.status === 'fulfilled' ? notes.value : []
       };
     } catch (error) {
       console.error('Error fetching bulk case data:', error);
@@ -235,84 +198,7 @@ class SmartAdvocateClient {
     }
   }
 
-  // Write operations (no caching)
-  async createCase(caseData: any) {
-    const result = await this.makeRequest('case', {
-      method: 'POST',
-      body: caseData
-    });
-
-    // Clear relevant caches
-    this.clearCache('case/CaseInfo');
-    return result;
-  }
-
-  async updateCase(caseSA: string | number, caseData: any) {
-    const result = await this.makeRequest(`case/CaseInfo?Casenumber=${caseSA}`, {
-      method: 'PUT',
-      body: caseData
-    });
-
-    // Clear case-specific cache
-    this.clearCache(`case/CaseInfo?Casenumber=${caseSA}`);
-    this.clearCache('case/CaseInfo');
-    return result;
-  }
-
-  async deleteCase(caseId: string | number) {
-    const result = await this.makeRequest(`case/${caseId}`, {
-      method: 'DELETE'
-    });
-
-    // Clear all case-related caches
-    this.clearCache();
-    return result;
-  }
-
-  async createContact(contactData: any) {
-    const result = await this.makeRequest('contacts', {
-      method: 'POST',
-      body: contactData
-    });
-
-    this.clearCache('contacts');
-    return result;
-  }
-
-  async updateContact(contactId: string | number, contactData: any) {
-    const result = await this.makeRequest(`contacts/${contactId}`, {
-      method: 'PUT',
-      body: contactData
-    });
-
-    this.clearCache(`contacts/${contactId}`);
-    this.clearCache('contacts');
-    return result;
-  }
-
-  async createNote(caseSA: string | number, noteData: any) {
-    const result = await this.makeRequest(`case/${caseSA}/notes`, {
-      method: 'POST',
-      body: noteData
-    });
-
-    this.clearCache(`case/${caseSA}/notes`);
-    return result;
-  }
-
-  async createTask(caseSA: string | number, taskData: any) {
-    const result = await this.makeRequest(`case/${caseSA}/tasks`, {
-      method: 'POST',
-      body: taskData
-    });
-
-    this.clearCache(`case/${caseSA}/tasks`);
-    return result;
-  }
-
-// Replace the existing getDocumentContent method in lib/smartadvocate/client.ts
-
-async getDocumentContent(documentId: string | number) {
+  async getDocumentContent(documentId: string | number) {
   // Get the current user's session
   const { data: { session }, error } = await this.supabase.auth.getSession();
 
@@ -476,12 +362,10 @@ async getDocumentContent(documentId: string | number) {
     fileName: `document_${documentId}.txt`,
     fileSize: textContent.length
   };
-}
+  }
 
-// Add this method to the SmartAdvocateClient class in lib/smartadvocate/client.ts
-
-async getDocumentContentBinary(documentId: string | number) {
-  // Get the current user's session
+  async downloadDocument(documentId: string | number) {
+  // For downloads, we need to handle binary data differently
   const { data: { session }, error } = await this.supabase.auth.getSession();
 
   if (error || !session) {
@@ -489,8 +373,6 @@ async getDocumentContentBinary(documentId: string | number) {
   }
 
   const url = new URL(`/api/smartadvocate/case/document/${documentId}/content`, window.location.origin);
-
-  console.log(`Making binary request to: ${url.toString()}`);
 
   const response = await fetch(url.toString(), {
     method: 'GET',
@@ -500,159 +382,30 @@ async getDocumentContentBinary(documentId: string | number) {
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`API request failed: ${response.statusText} ${JSON.stringify(errorData)}`);
+    throw new Error(`Download failed: ${response.statusText}`);
   }
 
-  // Get the content type and response as array buffer for binary handling
-  const contentType = response.headers.get('content-type') || '';
-  console.log(`Binary request content-type:`, contentType);
-
-  // If it's JSON, parse it
-  if (contentType.includes('application/json')) {
-    return await response.json();
+  // Check if response is already a blob/binary
+  const contentType = response.headers.get('content-type');
+  if (contentType && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream'))) {
+    return response.blob();
   }
 
-  // Get content as array buffer for proper binary handling
-  const arrayBuffer = await response.arrayBuffer();
-  console.log(`Binary content length:`, arrayBuffer.byteLength);
+  // If it's text (like your PDF content), we need to handle it differently
+  const textContent = await response.text();
 
-  // Convert to Uint8Array for easier manipulation
-  const uint8Array = new Uint8Array(arrayBuffer);
-
-  // Check if it's a PDF by looking at the first few bytes
-  const textDecoder = new TextDecoder('latin1'); // Use latin1 to preserve all byte values
-  const firstBytes = textDecoder.decode(uint8Array.slice(0, 10));
-  const isPDF = firstBytes.startsWith('%PDF-');
-
-  console.log(`First 10 bytes:`, firstBytes);
-  console.log(`Is PDF:`, isPDF);
-
-  if (isPDF) {
-    // Create a proper PDF blob
-    const blob = new Blob([uint8Array], { type: 'application/pdf' });
-    const downloadUrl = URL.createObjectURL(blob);
-
-    return {
-      content: null,
-      contentType: 'application/pdf',
-      downloadUrl: downloadUrl,
-      fileName: `document_${documentId}.pdf`,
-      fileSize: arrayBuffer.byteLength,
-      isPDFBinary: true
-    };
-  }
-
-  // For images
-  if (contentType.includes('image/')) {
-    const blob = new Blob([uint8Array], { type: contentType });
-    const downloadUrl = URL.createObjectURL(blob);
-
-    return {
-      content: null,
-      contentType: contentType,
-      downloadUrl: downloadUrl,
-      fileName: `document_${documentId}.${contentType.split('/')[1]}`,
-      fileSize: arrayBuffer.byteLength
-    };
-  }
-
-  // For text content, convert to string
-  const textContent = new TextDecoder('utf-8').decode(uint8Array);
-
-  return {
-    content: textContent,
-    contentType: contentType || 'text/plain',
-    fileName: `document_${documentId}.txt`,
-    fileSize: arrayBuffer.byteLength
-  };
-}
-
-  async downloadDocument(documentId: string | number) {
-    // For downloads, we need to handle binary data differently
-    const { data: { session }, error } = await this.supabase.auth.getSession();
-
-    if (error || !session) {
-      throw new Error('User not authenticated');
+  // Check if it looks like PDF content
+  if (textContent.startsWith('%PDF-')) {
+    // Convert the text to a proper PDF blob
+    const pdfBytes = new Uint8Array(textContent.length);
+    for (let i = 0; i < textContent.length; i++) {
+      pdfBytes[i] = textContent.charCodeAt(i);
     }
-
-    const url = new URL(`/api/smartadvocate/case/document/${documentId}/content`, window.location.origin);
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.statusText}`);
-    }
-
-    // Check if response is already a blob/binary
-    const contentType = response.headers.get('content-type');
-    if (contentType && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream'))) {
-      return response.blob();
-    }
-
-    // If it's text (like your PDF content), we need to handle it differently
-    const textContent = await response.text();
-
-    // Check if it looks like PDF content
-    if (textContent.startsWith('%PDF-')) {
-      // Convert the text to a proper PDF blob
-      const pdfBytes = new Uint8Array(textContent.length);
-      for (let i = 0; i < textContent.length; i++) {
-        pdfBytes[i] = textContent.charCodeAt(i);
-      }
-      return new Blob([pdfBytes], { type: 'application/pdf' });
-    }
-
-    // For other text content, return as text blob
-    return new Blob([textContent], { type: 'text/plain' });
+    return new Blob([pdfBytes], { type: 'application/pdf' });
   }
 
-  // Search functionality
-  async searchCases(query: string, filters?: Record<string, any>) {
-    const params = {
-      q: query,
-      ...filters
-    };
-
-    return this.makeRequest('case/search', {
-      params,
-      cache: true,
-      cacheDuration: 2 * 60 * 1000 // 2 minutes for search results
-    });
-  }
-
-  async searchContacts(query: string, filters?: Record<string, any>) {
-    const params = {
-      q: query,
-      ...filters
-    };
-
-    return this.makeRequest('contacts/search', {
-      params,
-      cache: true,
-      cacheDuration: 5 * 60 * 1000
-    });
-  }
-
-  // Analytics and reporting
-  async getCaseAnalytics(caseSA: string | number) {
-    return this.makeRequest(`case/${caseSA}/analytics`, {
-      cache: true,
-      cacheDuration: 60 * 60 * 1000 // 1 hour for analytics
-    });
-  }
-
-  async getReports(reportType: string, params?: Record<string, string>) {
-    return this.makeRequest(`reports/${reportType}`, {
-      params,
-      cache: true,
-      cacheDuration: 30 * 60 * 1000 // 30 minutes for reports
-    });
+  // For other text content, return as text blob
+  return new Blob([textContent], { type: 'text/plain' });
   }
 }
 
