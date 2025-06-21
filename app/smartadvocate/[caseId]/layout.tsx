@@ -172,8 +172,8 @@ export default function CaseLayout({ children }: CaseLayoutProps) {
       </div>
 
       {/* Navigation Tabs */}
-      <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="space-y-3">
+        <TabsList className="grid w-full grid-cols-5 max-w-6xl mx-auto mt-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>

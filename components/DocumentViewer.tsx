@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Maximize2,
   Minimize2,
-  Paperclip
+  Paperclip,
+  X
 } from 'lucide-react';
 import smartAdvocateClient from '@/lib/smartadvocate/client';
 import { parseMSGFile, type MSGContent } from '@/lib/smartadvocate/msg-parser';
@@ -758,11 +759,11 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-semibold text-gray-900 break-words">
-            {document?.documentName}
-          </h3>
-          <p className="text-sm text-gray-600 mt-1 break-words">
             {document?.description}
-          </p>
+          </h3>
+          {/* <p className="text-sm text-gray-600 mt-1 break-words">
+            {document?.description}
+          </p> */}
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <Badge className={getDirectionColor(document?.directionName)}>
@@ -831,6 +832,14 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
             <ExternalLink className="w-4 h-4" />
           </Button>
         )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onClose}
+        title="Download"
+      >
+        <X className="w-4 h-4" />
+      </Button>
       </div>
     </div>
   );
@@ -857,11 +866,10 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
   // Modal mode - original behavior
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${
-        isFullscreen
-          ? 'max-w-[98vw] max-h-[98vh] w-[98vw] h-[98vh]'
-          : 'max-w-6xl max-h-[90vh] w-[90vw]'
-      } flex flex-col overflow-hidden`}>
+      <DialogContent className={`${isFullscreen
+        ? 'max-w-[98vw] max-h-[98vh] w-[98vw] h-[98vh]'
+        : 'max-w-6xl max-h-[90vh] w-[90vw]'
+        } flex flex-col overflow-hidden`}>
 
         {/* Header Section - Fixed height */}
         <DialogHeader className="flex-shrink-0 pb-4 border-b">

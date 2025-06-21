@@ -205,21 +205,6 @@ export default function DocumentsPage() {
               height: 'calc(100vh - 4rem)' // Subtract navbar height (4rem = 64px)
             }}
           >
-            {/* Viewer Header */}
-            <div className="flex items-center justify-between p-4 border-b bg-white">
-              <h2 className="font-medium text-gray-900 truncate mr-4">
-                Document Preview
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCloseViewer}
-                className="flex-shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-
             {/* Viewer Content */}
             <div className="flex-1 overflow-hidden">
               <DocumentViewer
