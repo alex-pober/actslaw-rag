@@ -49,10 +49,19 @@ interface CaseContextType {
   caseDocuments: any[] | null;
   caseNotes: any[] | null;
   caseContacts: any[] | null;
+  caseTasks: any[] | null;
+  // Tasks pagination
+  taskPage: number;
+  taskPageSize: number;
+  setTaskPage: (page: number) => void;
   // Fetch related data
   loadCaseDocuments: () => Promise<void>;
   loadCaseNotes: () => Promise<void>;
   loadCaseContacts: () => Promise<void>;
+  loadCaseTasks: () => Promise<void>;
+  // Get paginated tasks
+  getPaginatedTasks: () => any[] | null;
+  getTasksTotalCount: () => number;
 }
 
 const CaseContext = createContext<CaseContextType | undefined>(undefined);
@@ -67,6 +76,11 @@ export function CaseProvider({ children }: { children: ReactNode }) {
   const [caseDocuments, setCaseDocuments] = useState<any[] | null>(null);
   const [caseNotes, setCaseNotes] = useState<any[] | null>(null);
   const [caseContacts, setCaseContacts] = useState<any[] | null>(null);
+  const [caseTasks, setCaseTasks] = useState<any[] | null>(null);
+  
+  // Task pagination state
+  const [taskPage, setTaskPage] = useState<number>(0);
+  const [taskPageSize] = useState<number>(10);
 
   const loadCase = async (saNumber: string) => {
     if (!saNumber.trim() || isClearing) return;
@@ -86,7 +100,8 @@ export function CaseProvider({ children }: { children: ReactNode }) {
 
       // Clear related data when switching cases
       setCaseDocuments(null);
-      // setCaseNotes(null);
+      setCaseNotes(null);
+      setCaseTasks(null);
       // setCaseContacts(null);
 
       // Store in localStorage for persistence
@@ -107,6 +122,7 @@ export function CaseProvider({ children }: { children: ReactNode }) {
     setCaseDocuments(null);
     setCaseNotes(null);
     setCaseContacts(null);
+    setCaseTasks(null);
     localStorage.removeItem('currentCase');
     
     // Reset clearing flag after a brief delay
@@ -131,7 +147,7 @@ export function CaseProvider({ children }: { children: ReactNode }) {
     if (!currentCase) return;
 
     try {
-      const notes = await smartAdvocateClient.getCaseNotes(currentCase.caseNumber);
+      const notes = await smartAdvocateClient.getCaseNotes(currentCase.caseID);
       setCaseNotes(notes);
     } catch (error) {
       console.error('Failed to load case notes:', error);
@@ -147,6 +163,32 @@ export function CaseProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to load case contacts:', error);
     }
+  };
+
+  const loadCaseTasks = async () => {
+    if (!currentCase) return;
+
+    try {
+      const tasks = await smartAdvocateClient.getCaseTasks(currentCase.caseID.toString());
+      setCaseTasks(tasks);
+    } catch (error) {
+      console.error('Failed to load case tasks:', error);
+    }
+  };
+  
+  // Get paginated tasks based on current page and page size
+  const getPaginatedTasks = () => {
+    if (!caseTasks) return null;
+    
+    const startIndex = taskPage * taskPageSize;
+    const endIndex = startIndex + taskPageSize;
+    
+    return caseTasks.slice(startIndex, endIndex);
+  };
+  
+  // Get total count of tasks
+  const getTasksTotalCount = () => {
+    return caseTasks ? caseTasks.length : 0;
   };
 
   // Load case from URL parameter on mount
@@ -174,9 +216,16 @@ export function CaseProvider({ children }: { children: ReactNode }) {
         caseDocuments,
         caseNotes,
         caseContacts,
+        caseTasks,
+        taskPage,
+        taskPageSize,
+        setTaskPage,
+        getPaginatedTasks,
+        getTasksTotalCount,
         loadCaseDocuments,
         loadCaseNotes,
         loadCaseContacts,
+        loadCaseTasks,
       }}
     >
       {children}

@@ -1,6 +1,20 @@
 // lib/smartadvocate/enhanced-client.ts
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
+export interface DocumentContent {
+  content?: string;
+  contentType: string;
+  downloadUrl?: string;
+  fileName: string;
+  fileSize: number;
+  isDOCXFile?: boolean;
+  isMSGFile?: boolean;
+  isPDFBlob?: boolean;
+  isBinaryFile?: boolean;
+  rawBlob?: Blob;
+  rawData?: ArrayBuffer;
+}
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   body?: any;
@@ -152,8 +166,16 @@ class SmartAdvocateClient {
     return this.makeRequest(`case/${caseId}/documents?currentPage=0&pageSize=200`);
   }
 
-  async getCaseNotes(caseNumber: string) {
-    return this.makeRequest(`case/${caseNumber}/notes`);
+  async getDocument(documentId: string) {
+    return this.makeRequest(`case/document/${documentId}`);
+  }
+
+  async getCaseNotes(caseId: string) {
+    return this.makeRequest(`case/${caseId}/notes?currentPage=0&pageSize=200`);
+  }
+
+  async getCaseTasks(caseId: string) {
+    return this.makeRequest(`case/${caseId}/task?currentPage=0&pageSize=200`);
   }
 
   async getCaseContacts(caseNumber: string) {
@@ -166,13 +188,6 @@ class SmartAdvocateClient {
       params,
       cache: true,
       cacheDuration: 5 * 60 * 1000
-    });
-  }
-
-  async getDocument(documentId: string | number) {
-    return this.makeRequest(`documents/${documentId}`, {
-      cache: true,
-      cacheDuration: 30 * 60 * 1000 // 30 minutes for individual documents
     });
   }
 
@@ -198,214 +213,168 @@ class SmartAdvocateClient {
     }
   }
 
-  async getDocumentContent(documentId: string | number) {
-  // Get the current user's session
-  const { data: { session }, error } = await this.supabase.auth.getSession();
+  async getDocumentContent(documentId: string | number, documentName?: string): Promise<DocumentContent> {
+    // Get the current user's session
+    const { data: { session }, error } = await this.supabase.auth.getSession();
 
-  if (error || !session) {
-    throw new Error('User not authenticated');
-  }
-
-  const url = new URL(`/api/smartadvocate/case/document/${documentId}/content`, window.location.origin);
-
-  console.log(`Making request to: ${url.toString()}`);
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${session.access_token}`,
+    if (error || !session) {
+      throw new Error('User not authenticated');
     }
-  });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`API request failed: ${response.statusText} ${JSON.stringify(errorData)}`);
-  }
+    const url = new URL(`/api/smartadvocate/case/document/${documentId}/content`, window.location.origin);
 
-  // Get the content type to determine how to handle the response
-  const contentType = response.headers.get('content-type') || '';
-  const contentLength = response.headers.get('content-length') || '0';
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+      }
+    });
 
-  console.log(`Document ${documentId} response:`, {
-    contentType,
-    contentLength,
-    status: response.status
-  });
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.statusText}`);
+    }
 
-  // Log raw response data for debugging
-  const responseClone = response.clone();
-  const arrayBuffer = await responseClone.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
+    const contentType = response.headers.get('content-type') || '';
+    const contentLength = response.headers.get('content-length') || '0';
 
-  console.log(`Raw response data for document ${documentId}:`, {
-    byteLength: arrayBuffer.byteLength,
-    first20Bytes: Array.from(uint8Array.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '),
-    firstBytesAsString: String.fromCharCode.apply(null, Array.from(uint8Array.slice(0, 50))),
-    contentType,
-    headers: Object.fromEntries(response.headers.entries())
-  });
+    console.log(`Response for document ${documentId}:`, {
+      contentType,
+      contentLength,
+      status: response.status,
+      documentName,
+    });
 
-  // If it's JSON, parse it
-  if (contentType.includes('application/json')) {
-    return await response.json();
-  }
+    const extension = documentName ? documentName.split('.').pop()?.toLowerCase() : '';
 
-  // For PDFs, create a blob URL directly from the response
-  if (contentType.includes('application/pdf')) {
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    console.log(`Created PDF blob URL for document ${documentId}:`, blobUrl);
-
-    return {
-      content: null,
-      contentType: 'application/pdf',
-      downloadUrl: blobUrl,
-      fileName: `document_${documentId}.pdf`,
-      fileSize: parseInt(contentLength, 10) || blob.size,
-      isPDFBlob: true
-    };
-  }
-
-  // For MSG files and other binary content (including DOCX), we need to examine the content
-  if (contentType.includes('application/vnd.ms-outlook') ||
-      contentType.includes('application/octet-stream')) {
-
-    // Get the binary data to examine file signatures
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    // Check for different file signatures
-    const oleSignature = Array.from(uint8Array.slice(0, 8))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    const zipSignature = Array.from(uint8Array.slice(0, 4))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    const isMSG = oleSignature === 'd0cf11e0a1b11ae1'; // OLE compound document signature
-    const isZip = zipSignature === '504b0304'; // ZIP signature (DOCX files are ZIP archives)
-
-    console.log(`Document ${documentId} signatures - OLE: ${oleSignature}, ZIP: ${zipSignature}, isMSG: ${isMSG}, isZip: ${isZip}`);
-
-    // Check if it's a DOCX file (ZIP archive containing Office Open XML)
-    if (isZip) {
-      // DOCX files are ZIP archives, so create a proper DOCX blob
+    // Priority 1: Handle based on file extension for known types that need binary handling
+    if (extension === 'docx') {
+      console.log(`Handling as DOCX based on extension for document ${documentId}`);
+      const arrayBuffer = await response.arrayBuffer();
       const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
       const blobUrl = URL.createObjectURL(blob);
-
-      console.log(`Created DOCX blob URL for document ${documentId}:`, blobUrl);
-
       return {
-        content: null,
+        content: undefined,
         contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         downloadUrl: blobUrl,
-        fileName: `document_${documentId}.docx`,
+        fileName: documentName || `document_${documentId}.docx`,
         fileSize: arrayBuffer.byteLength,
         isDOCXFile: true,
-        rawBlob: blob // Store the actual blob for docx-preview
+        rawBlob: blob,
       };
     }
 
-    if (isMSG) {
-      // For MSG files, we'll try to extract readable content
-      // Since we can't parse MSG directly in browser, we'll download it
+    if (extension === 'msg') {
+      console.log(`Handling as MSG based on extension for document ${documentId}`);
+      const arrayBuffer = await response.arrayBuffer();
       const blob = new Blob([arrayBuffer], { type: 'application/vnd.ms-outlook' });
       const blobUrl = URL.createObjectURL(blob);
-
       return {
-        content: null,
+        content: undefined,
         contentType: 'application/vnd.ms-outlook',
         downloadUrl: blobUrl,
-        fileName: `document_${documentId}.msg`,
+        fileName: documentName || `document_${documentId}.msg`,
         fileSize: arrayBuffer.byteLength,
         isMSGFile: true,
-        rawData: arrayBuffer
+        rawData: arrayBuffer,
       };
     }
 
-    // If not MSG or DOCX, handle as generic binary
-    const blob = new Blob([arrayBuffer], { type: contentType });
-    const blobUrl = URL.createObjectURL(blob);
+    // Priority 2: Handle based on Content-Type header
+    if (contentType.includes('application/pdf')) {
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      console.log(`Created PDF blob URL for document ${documentId}:`, blobUrl);
+      return {
+        content: undefined,
+        contentType: 'application/pdf',
+        downloadUrl: blobUrl,
+        fileName: `document_${documentId}.pdf`,
+        fileSize: parseInt(contentLength, 10) || blob.size,
+        isPDFBlob: true,
+      };
+    }
+    
+    if (contentType.includes('image/')) {
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      return {
+        content: undefined,
+        contentType: contentType,
+        downloadUrl: blobUrl,
+        fileName: `document_${documentId}.${contentType.split('/')[1]}`,
+        fileSize: blob.size,
+      };
+    }
+    
+    // Handle generic binary stream if not identified by extension
+    if (contentType.includes('application/octet-stream')) {
+        console.log(`Handling as generic binary stream for document ${documentId}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: contentType });
+        const blobUrl = URL.createObjectURL(blob);
+        return {
+            content: undefined,
+            contentType: contentType,
+            downloadUrl: blobUrl,
+            fileName: documentName || `document_${documentId}.bin`,
+            fileSize: arrayBuffer.byteLength,
+            isBinaryFile: true,
+        };
+    }
 
+    // Fallback: Handle as text
+    console.log(`Falling back to text handling for document ${documentId}`);
+    const textContent = await response.text();
     return {
-      content: null,
-      contentType: contentType,
-      downloadUrl: blobUrl,
-      fileName: `document_${documentId}.bin`,
-      fileSize: arrayBuffer.byteLength,
-      isBinaryFile: true
+      content: textContent,
+      contentType: contentType || 'text/plain',
+      fileName: `document_${documentId}.txt`,
+      fileSize: textContent.length,
     };
   }
 
-  // For images, handle as blob
-  if (contentType.includes('image/')) {
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
+  async downloadDocument(documentId: string | number): Promise<Blob> {
+    // For downloads, we need to handle binary data differently
+    const { data: { session }, error } = await this.supabase.auth.getSession();
 
-    return {
-      content: null,
-      contentType: contentType,
-      downloadUrl: blobUrl,
-      fileName: `document_${documentId}.${contentType.split('/')[1]}`,
-      fileSize: blob.size
-    };
-  }
-
-  // For all other content, get as text
-  const textContent = await response.text();
-  console.log(`Document ${documentId} text content length:`, textContent.length);
-
-  return {
-    content: textContent,
-    contentType: contentType || 'text/plain',
-    fileName: `document_${documentId}.txt`,
-    fileSize: textContent.length
-  };
-  }
-
-  async downloadDocument(documentId: string | number) {
-  // For downloads, we need to handle binary data differently
-  const { data: { session }, error } = await this.supabase.auth.getSession();
-
-  if (error || !session) {
-    throw new Error('User not authenticated');
-  }
-
-  const url = new URL(`/api/smartadvocate/case/document/${documentId}/content`, window.location.origin);
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${session.access_token}`,
+    if (error || !session) {
+      throw new Error('User not authenticated');
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`Download failed: ${response.statusText}`);
-  }
+    const url = new URL(`/api/smartadvocate/case/document/${documentId}/content`, window.location.origin);
 
-  // Check if response is already a blob/binary
-  const contentType = response.headers.get('content-type');
-  if (contentType && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream'))) {
-    return response.blob();
-  }
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+      }
+    });
 
-  // If it's text (like your PDF content), we need to handle it differently
-  const textContent = await response.text();
-
-  // Check if it looks like PDF content
-  if (textContent.startsWith('%PDF-')) {
-    // Convert the text to a proper PDF blob
-    const pdfBytes = new Uint8Array(textContent.length);
-    for (let i = 0; i < textContent.length; i++) {
-      pdfBytes[i] = textContent.charCodeAt(i);
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.statusText}`);
     }
-    return new Blob([pdfBytes], { type: 'application/pdf' });
-  }
 
-  // For other text content, return as text blob
-  return new Blob([textContent], { type: 'text/plain' });
+    // Check if response is already a blob/binary
+    const contentType = response.headers.get('content-type');
+    if (contentType && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream'))) {
+      return response.blob();
+    }
+
+    // If it's text (like your PDF content), we need to handle it differently
+    const textContent = await response.text();
+
+    // Check if it looks like PDF content
+    if (textContent.startsWith('%PDF-')) {
+      // Convert the text to a proper PDF blob
+      const pdfBytes = new Uint8Array(textContent.length);
+      for (let i = 0; i < textContent.length; i++) {
+        pdfBytes[i] = textContent.charCodeAt(i);
+      }
+      return new Blob([pdfBytes], { type: 'application/pdf' });
+    }
+
+    // For other text content, return as text blob
+    return new Blob([textContent], { type: 'text/plain' });
   }
 }
 

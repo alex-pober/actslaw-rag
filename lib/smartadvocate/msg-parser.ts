@@ -31,11 +31,21 @@ export function parseMSGFile(arrayBuffer: ArrayBuffer): MSGContent {
     }
 
     // Extract basic email information
+    const sanitizedHtmlBody = sanitizeHTML(fileData.bodyHtml || undefined);
+
+    // Prefer plain text body; if missing derive it from the HTML version
+    const plainBody =
+      cleanBodyText(fileData.body) ||
+      (sanitizedHtmlBody ? cleanBodyText(htmlToPlainText(sanitizedHtmlBody)) : undefined);
+
+    // Process the plain body to make URLs clickable
+    const bodyWithClickableLinks = plainBody ? convertUrlsToLinks(plainBody) : undefined;
+
     const result: MSGContent = {
       subject: cleanText(fileData.subject),
       from: extractSenderInfo(fileData),
-      body: cleanBodyText(fileData.body),
-      htmlBody: fileData.bodyHtml || undefined,
+      body: plainBody,
+      htmlBody: bodyWithClickableLinks || sanitizedHtmlBody,
       attachments: extractAttachments(fileData.attachments || []),
     };
 
@@ -239,6 +249,41 @@ function formatDate(date: Date): string {
 }
 
 /**
+ * Very small HTML sanitizer – strips <script>, <style> tags and dangerous inline handlers.
+ * NOTE:  This is a *minimal* solution to avoid extra dependencies.  For full-blown
+ * sanitisation consider using a dedicated library (e.g. DOMPurify) on the client.
+ */
+function sanitizeHTML(html: string | undefined): string | undefined {
+  if (!html) return undefined;
+
+  let sanitized = html
+    // Remove script & style blocks (including their content)
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
+  // Strip inline `on*="…"` / `on*='…'` event handlers
+  sanitized = sanitized.replace(/\son\w+="[^"]*"/gi, '').replace(/\son\w+='[^']*'/gi, '');
+
+  return sanitized.trim() || undefined;
+}
+
+/**
+ * Convert a subset of HTML to plain text so we have a fallback when the MSG
+ * lacks a dedicated plain-text body.
+ */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<\/?(br|p|div)[^>]*>/gi, '\n') // Break‐like tags ➜ newline
+    .replace(/<[^>]+>/g, '')                     // Strip remaining tags
+    .replace(/&nbsp;/gi, ' ')                    // Entity decode (minimal set)
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"');
+}
+
+/**
  * Extract attachment content from MSG file
  * @param arrayBuffer The MSG file as ArrayBuffer
  * @param attachmentIndex The index of the attachment to extract
@@ -264,4 +309,34 @@ export function getMSGAttachment(arrayBuffer: ArrayBuffer, attachmentIndex: numb
     console.error('Error extracting MSG attachment:', error);
     return null;
   }
+}
+
+/**
+ * Detect URLs in text and convert them to clickable HTML links
+ * This preserves line breaks and spaces while making URLs clickable
+ */
+function convertUrlsToLinks(text: string): string {
+  // URL regex pattern that matches common URL formats
+  // This regex matches URLs starting with http://, https://, www. or common TLDs
+  const urlRegex = /(?:(?:https?:\/\/)|(?:www\.))[^\s<]+\.[^\s\n\r<),.;!"']+/gi;
+  
+  // First, find all URLs and store them with placeholders
+  const urls: string[] = [];
+  let processedText = text.replace(urlRegex, (url) => {
+    urls.push(url);
+    return `__URL_PLACEHOLDER_${urls.length - 1}__`;
+  });
+  
+  // Replace line breaks with <br> tags to preserve formatting
+  processedText = processedText.replace(/\n/g, '<br>');
+  
+  // Restore URLs as clickable links
+  processedText = processedText.replace(/__URL_PLACEHOLDER_(\d+)__/g, (match, index) => {
+    const url = urls[parseInt(index)];
+    // Ensure URL has protocol for href
+    const href = url.startsWith('www.') ? `https://${url}` : url;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline">${url}</a>`;
+  });
+  
+  return processedText;
 }

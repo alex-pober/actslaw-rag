@@ -94,7 +94,7 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
 
       console.log('Loading document content for ID:', document.documentID);
 
-      const docContent = await smartAdvocateClient.getDocumentContent(document.documentID);
+      const docContent = await smartAdvocateClient.getDocumentContent(document.documentID, document.documentName);
       console.log('Document content loaded:', document);
 
       setContent(docContent);
@@ -266,7 +266,7 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
               <h3 className="text-lg font-semibold text-gray-900">Email Message</h3>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 text-sm">
+            <div className="grid grid-cols-1 gap-0 text-sm">
               {parsedMSG.subject && (
                 <div className="flex">
                   <span className="font-medium text-gray-700 w-16 flex-shrink-0">Subject:</span>
@@ -305,20 +305,20 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
 
             {/* Attachments */}
             {parsedMSG.attachments && parsedMSG.attachments.length > 0 && (
-              <div className="mt-4 pt-4 border-t">
-                <div className="flex items-center mb-2">
-                  <Paperclip className="w-4 h-4 mr-2 text-gray-600" />
-                  <span className="font-medium text-gray-700 text-sm">
+              <div className="mt-2 pt-2 border-t">
+                <div className="flex items-center mb-1">
+                  <Paperclip className="w-3 h-3 mr-1 text-gray-600" />
+                  <span className="font-medium text-gray-700 text-xs">
                     Attachments ({parsedMSG.attachments.length})
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex flex-wrap gap-1">
                   {parsedMSG.attachments.map((att, index) => (
-                    <div key={index} className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      <FileText className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{att.fileName}</span>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        ({(att.contentLength / 1024).toFixed(1)} KB)
+                    <div key={index} className="inline-flex items-center text-xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                      <FileText className="w-3 h-3 mr-1 flex-shrink-0" />
+                      <span className="truncate max-w-[150px]">{att.fileName}</span>
+                      <span className="text-xs text-gray-500 ml-1 flex-shrink-0">
+                        ({(att.contentLength / 1024).toFixed(1)}KB)
                       </span>
                     </div>
                   ))}
@@ -332,20 +332,22 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
             <div className="bg-white rounded-lg p-4 border">
               <div className="font-medium text-gray-700 mb-3 text-sm">Message Content:</div>
 
-              {parsedMSG.body && (
+              {/* Always prioritize HTML body with clickable links */}
+              {parsedMSG.htmlBody ? (
+                <div className="prose prose-sm max-w-full ">
+                  <div
+                    className="text-sm bg-gray-50 p-3 rounded border email-content overflow-hidden"
+                    dangerouslySetInnerHTML={{ __html: parsedMSG.htmlBody }}
+                    style={{ 
+                      '--link-color': '#2563eb',
+                    } as React.CSSProperties}
+                  />
+                </div>
+              ) : parsedMSG.body && (
                 <div className="prose prose-sm max-w-none">
                   <pre className="whitespace-pre-wrap text-sm text-gray-900 font-sans bg-gray-50 p-3 rounded border overflow-x-auto">
                     {parsedMSG.body}
                   </pre>
-                </div>
-              )}
-
-              {parsedMSG.htmlBody && !parsedMSG.body && (
-                <div className="prose prose-sm max-w-none overflow-auto max-h-96">
-                  <div
-                    className="text-sm bg-gray-50 p-3 rounded border"
-                    dangerouslySetInnerHTML={{ __html: parsedMSG.htmlBody }}
-                  />
                 </div>
               )}
             </div>
@@ -776,11 +778,11 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
             <Badge variant="outline">
               {document?.priorityName}
             </Badge>
-            {!document?.isReviewed && (
+            {/* {document?.isReviewed && (
               <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
                 Needs Review
               </Badge>
-            )}
+            )} */}
           </div>
 
           <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
@@ -836,7 +838,7 @@ export default function DocumentViewer({ document, isOpen, onClose, mode = 'moda
         variant="outline"
         size="sm"
         onClick={onClose}
-        title="Download"
+        title="Close Preview"
       >
         <X className="w-4 h-4" />
       </Button>

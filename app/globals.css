@@ -83,4 +83,25 @@
   *::-webkit-scrollbar {
     display: none; /* Safari and Chrome */
   }
+
+  /* Email content styling */
+  .email-content {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  
+  .email-content img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  .email-content table {
+    max-width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .email-content a {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+  }
 }
